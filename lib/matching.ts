@@ -40,6 +40,7 @@ export function parseShoppingList(text: string): ShoppingItem[] {
   if (!fragments.length) throw new Error("Add at least one grocery item");
   if (fragments.length > 12) throw new Error("Compare up to 12 different items at a time");
   return fragments.map((fragment, index) => {
+    if (/[+-]\s*\d/.test(fragment)) throw new Error("Use positive quantities without a sign");
     let clean = fragment.replace(/^[-•]\s*/, "");
     const multiplier = clean.match(/^(\d+)\s*[x×]\s*/i);
     const count = multiplier ? Number(multiplier[1]) : 1;
