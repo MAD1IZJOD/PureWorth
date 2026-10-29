@@ -2,6 +2,8 @@
 
 **One shopping list. Every store. The lowest total price.**
 
+Latest: [29 October stabilization audit](docs/audit-2026-10-29.md) — 75 unit/API tests and 225 browser tests passed across desktop, tablet and 360/390/430px mobile layouts. Ready for supervised demo testing; deployment-level rate limiting, monitoring and load testing remain prerequisites for unrestricted public traffic.
+
 A working grocery comparison MVP for India, built with Next.js App Router, strict TypeScript, React, Zod, Lucide and custom responsive CSS. It runs without paid APIs, a database, credentials or environment variables.
 
 **All stores, prices, offers and availability are fictional demonstration fixtures.** Freshlane, Daily Basket and Pantry Club are simulated retailers. Blinkit, Zepto, Swiggy Instamart, BigBasket, Amazon and Flipkart are not integrated. Checkout is a preview: it cannot take payments or place orders.
@@ -60,7 +62,7 @@ Supabase is intentionally deferred: there is no account or durable shopping-hist
 
 Supported input includes `2 litres milk, 5kg rice, 1kg dal, 12 eggs`, `0.5 kg rice`, and `2 x 1 L Amul milk`. Commas, semicolons, newlines and the word “and” separate items. Quantities normalize to integer grams, millilitres, pieces or packs without floating-point rounding. Grams/kg, ml/L, pieces and packs remain distinct dimensions.
 
-The compact demo vocabulary covers milk, rice, dal, oil, eggs, atta, sugar, tea, curd and bananas. When omitted, the parser uses reviewable standard sizes (for example 1 L milk, 5 kg basmati rice and 12 regular eggs) and known grocery variants. This is a deterministic demo parser, not general language understanding. Unknown products remain unavailable; unknown qualifiers constrain matches rather than silently disappearing.
+The compact demo vocabulary covers milk, rice, dal, oil, eggs, atta, sugar, tea, curd and bananas. When omitted, the parser uses reviewable standard sizes (for example 1 L milk, 5 kg basmati rice and 12 regular eggs) and known grocery variants. This is a deterministic demo parser, not general language understanding. Unknown products remain unavailable. Unknown brands remain constraints; unrecognized details around known brands and ambiguous multiple quantities are rejected explicitly. Leading decimals such as `.5 L` normalize to 500 ml. Interpreted variants appear in the list rows.
 
 An exact match meets the interpreted brand, variant and package request. An equivalent match fulfills the exact total with a changed package arrangement. A similar alternative differs in brand or variant. Both latter classes need explicit approval. A single 1 kg rice pack never fulfills 5 kg: the engine must allocate five packs, display that quantity, calculate five prices, and receive approval for the package change. Indivisible or oversized packages and incompatible units are rejected. Inner pack counts are included in canonical quantity (the egg fixture is two inner packs of six).
 
@@ -88,7 +90,7 @@ One line uses a single retailer SKU with an integer pack count. It cannot combin
 
 ## Verification
 
-Executed locally on 29 October 2026:
+Initial MVP results at `36db4aa`, executed locally on 29 October 2026 (the [subsequent audit](docs/audit-2026-10-29.md) records current results and coverage):
 
 | Check | Actual result |
 | --- | --- |
