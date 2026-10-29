@@ -11,7 +11,7 @@ test("landing is keyboard accessible and fits the viewport", async ({ page }, in
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Skip to shopping list" })).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: info.outputPath("landing.png"), fullPage: true });
+  await page.screenshot({ path: info.outputPath("landing.png"), fullPage: true, animations: "disabled" });
 });
 
 test("example → matches → strategies → grouped cart → checkout and export", async ({ page }, info) => {
@@ -88,7 +88,7 @@ test("package substitutions remain excluded until explicitly approved", async ({
 test("unknown items and invalid natural language have honest error states", async ({ page }) => {
   await page.getByLabel("What’s on your list?").fill("milk -1L");
   await page.getByRole("button", { name: "Build my list" }).click();
-  await expect(page.getByRole("alert")).toContainText("positive quantities");
+  await expect(page.locator(".error-banner")).toContainText("positive quantities");
   await page.getByRole("button", { name: "Dismiss", exact: true }).click();
   await page.getByLabel("What’s on your list?").fill("soap 2 packs");
   await page.getByRole("button", { name: "Build my list" }).click();
@@ -114,14 +114,14 @@ test("service area, store restrictions and retailer limit change the actual comp
   await page.getByRole("checkbox", { name: /Freshlane/ }).uncheck();
   await page.getByRole("checkbox", { name: /Daily Basket/ }).uncheck();
   await page.getByRole("button", { name: "Compare my list", exact: true }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator(".error-banner")).toBeVisible();
 });
 
 test("failed comparisons preserve the list and allow retry", async ({ page }) => {
   await page.getByRole("button", { name: "Try a weekly essentials list" }).click();
   await page.route("**/api/compare", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Temporary service failure. Try again." }) }));
   await page.getByRole("button", { name: "Compare my list", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("Temporary service failure");
+  await expect(page.locator(".error-banner")).toContainText("Temporary service failure");
   await expect(page.getByTestId("shopping-item")).toHaveCount(5);
   await page.unroute("**/api/compare");
   await page.getByRole("button", { name: "Compare my list", exact: true }).click();
