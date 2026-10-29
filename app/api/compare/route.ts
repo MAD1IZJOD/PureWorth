@@ -1,13 +1,20 @@
-import { comparisonSchema, type ComparisonResponse } from "../../../lib/domain";
-import { demoAdapter } from "../../../lib/catalog";
-import { matchProducts } from "../../../lib/matching";
-import { optimizeBasket } from "../../../lib/optimizer";
+import { comparisonSchema } from "../../../lib/domain";
+import { compareDemo } from "../../../lib/providers/service";
+import { RequestBudget } from "../../../lib/providers/reliability";
 
 export const runtime = "nodejs";
 const headers = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
 const fail = (error: string, status: number) => Response.json({ error }, { status, headers });
+const budget = new RequestBudget();
 
 export async function POST(request: Request): Promise<Response> {
+  const ticket = budget.acquire();
+  if (!ticket.allowed) return Response.json({ error: "Comparison is busy. Your list is still here; retry shortly." }, { status: 429, headers: { ...headers, "Retry-After": String(ticket.retryAfterSeconds) } });
+  try { return await compareRequest(request); }
+  finally { ticket.release(); }
+}
+
+async function compareRequest(request: Request): Promise<Response> {
   const origin = request.headers.get("origin");
   // Next.js may construct an internal localhost URL behind a proxy. Compare
   // against the incoming HTTP Host, never an untrusted forwarded-host value.
@@ -18,7 +25,7 @@ export async function POST(request: Request): Promise<Response> {
       if (!["http:", "https:"].includes(source.protocol) || source.host !== expectedHost) return fail("Cross-origin requests are unavailable", 403);
     } catch { return fail("Invalid request origin", 403); }
   }
-  if (!request.headers.get("content-type")?.includes("application/json")) return fail("Send an application/json request", 415);
+  if (!/^application\/json(?:\s*;|$)/i.test(request.headers.get("content-type") ?? "")) return fail("Send an application/json request", 415);
   const reader = request.body?.getReader();
   if (!reader) return fail("A shopping list is required", 400);
   let text = "", size = 0;
@@ -38,15 +45,9 @@ export async function POST(request: Request): Promise<Response> {
   const input = comparisonSchema.safeParse(raw);
   if (!input.success) return fail(`Review your list and preferences: ${input.error.issues[0]?.message ?? "invalid input"}`, 400);
   try {
-    const { items, location, ...options } = input.data;
-    const [catalog, allRetailers] = await Promise.all([demoAdapter.search("", location), demoAdapter.getRetailers(location)]);
-    const selectedProducts = catalog.filter(p => options.retailerIds.includes(p.retailerId as typeof options.retailerIds[number]));
-    const matches = matchProducts(items, selectedProducts, location);
-    const result = optimizeBasket(matches, allRetailers, options);
-    const response: ComparisonResponse = { matches, result, retailers: allRetailers };
-    return Response.json(response, { headers });
-  } catch (error) {
-    console.error("Demo comparison failed", error);
+    return Response.json(await compareDemo(input.data), { headers });
+  } catch {
+    console.error("Comparison failed", { code: "INTERNAL_COMPARISON_ERROR" });
     return fail("Comparison is temporarily unavailable. Your list is still here; please try again.", 500);
   }
 }
