@@ -14,7 +14,7 @@ export function ComparisonResults({ result, onReview, tolerance }: { result: Opt
   const strategies: { id: Strategy; title: string; subtitle: string; icon: typeof Leaf }[] = [
     { id: "cheapest", title: result.status === "bounded" ? "Best basket found" : "Lowest total", subtitle: "Every eligible store. Every fee.", icon: Leaf },
     { id: "singleStore", title: result.status === "bounded" ? "Single store found" : "One-store shop", subtitle: "All your essentials, one order.", icon: Store },
-    { id: "fewerDeliveries", title: "Fewer deliveries", subtitle: `Within ${rupees(tolerance)} of the lowest total.`, icon: Truck },
+    { id: "fewerDeliveries", title: result.status === "bounded" ? "Fewer deliveries found" : "Fewer deliveries", subtitle: `Within ${rupees(tolerance)} of the ${result.status === "bounded" ? "best total found" : "lowest total"}.`, icon: Truck },
   ];
   function download(selected: Basket) {
     const lines = ["PureWorth — demonstration shopping plan", "Fictional prices. No order has been placed.", "", ...selected.orders.flatMap(o => [o.retailer.name, ...o.lines.map(l => `${l.packs} x ${l.product.name} (${quantityLabel(l.product.canonicalQuantity, l.product.canonicalUnit)}): ${rupees(l.lineTotal)}`), `Items: ${rupees(o.subtotal)}`, ...o.charges.map(c => `${c.label}: ${rupees(c.amount)}`), `Confirmed demo discount: -${rupees(o.discount)}`, `Store total: ${rupees(o.total)}`, ""]), `Total: ${rupees(selected.total)}`];
@@ -31,7 +31,7 @@ export function ComparisonResults({ result, onReview, tolerance }: { result: Opt
         {strategies.map(({ id, title, subtitle, icon: Icon }) => {
           const candidate = result[id];
           return <button key={id} className={`strategy-card ${strategy === id ? "selected" : ""}`} onClick={() => setStrategy(id)} aria-pressed={strategy === id} disabled={!candidate}>
-            <div><Icon size={20} /><span className="radio-indicator">{strategy === id && <Check size={12} />}</span></div><h3>{title}</h3><p>{subtitle}</p><strong>{candidate ? rupees(candidate.total) : "Unavailable"}</strong><span>{candidate ? `${candidate.orders.length} ${candidate.orders.length === 1 ? "store" : "stores"} · all fees included` : "No complete eligible basket"}</span>
+            <div><Icon size={20} /><span className="radio-indicator">{strategy === id && <Check size={12} />}</span></div><h3>{title}</h3><p>{subtitle}</p><strong>{candidate ? rupees(candidate.total) : result.status === "bounded" ? "Not found" : "Unavailable"}</strong><span>{candidate ? `${candidate.orders.length} ${candidate.orders.length === 1 ? "store" : "stores"} · all fees included` : result.status === "bounded" ? "Search limit reached; feasibility not proven" : "No complete eligible basket"}</span>
           </button>;
         })}
       </div>
