@@ -108,12 +108,15 @@ export async function compareProviders(input: ProviderComparisonInput, bindings:
 
 // Shared bounded executors impose per-provider process limits across HTTP requests.
 const executors = new Map(retailers.map(r => [r.id, new ProviderExecutor(r.id, simulationAccessPolicy)]));
+const normalProviders = new Map(retailers.map(r => [r.id, new ReferenceProvider(r.id, executors.get(r.id))]));
 export async function compareDemo(raw: ComparisonInput): Promise<ComparisonResponse> {
   const input = comparisonSchema.parse(raw);
   const delivery = demoLocation(input.location, input.pin);
   const bindings = retailers.map(retailer => {
     const simulation = ["timeout", "partial"].includes(input.simulation ?? "normal") && retailer.id !== "daily" ? "normal" : input.simulation ?? "normal";
-    return { retailer, sourceType: "SIMULATED_AUTHORIZED" as const, policies: { LOCATION_PRICE: demoFreshnessPolicy }, provider: new ReferenceProvider(retailer.id, executors.get(retailer.id), simulatedTransport(retailer.id, simulation)) };
+    const provider = simulation === "normal" ? normalProviders.get(retailer.id)! : new ReferenceProvider(retailer.id, executors.get(retailer.id), simulatedTransport(retailer.id, simulation));
+    if (input.refresh && simulation === "normal") provider.invalidate(delivery);
+    return { retailer, sourceType: "SIMULATED_AUTHORIZED" as const, policies: { LOCATION_PRICE: demoFreshnessPolicy }, provider };
   });
   return compareProviders({ ...input, delivery }, bindings);
 }
