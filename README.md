@@ -2,7 +2,7 @@
 
 **One shopping list. Every store. The lowest total price.**
 
-Latest: [29 October stabilization audit](docs/audit-2026-10-29.md) — 75 unit/API tests and 225 browser tests passed across desktop, tablet and 360/390/430px mobile layouts. Ready for supervised demo testing; deployment-level rate limiting, monitoring and load testing remain prerequisites for unrestricted public traffic.
+Latest: Phase 3 adds normalized provider contracts, location coverage, source freshness, permission-bounded caching and full-basket repricing. See the [provider architecture](docs/provider-architecture.md), [retailer access matrix](docs/retailer-integration-matrix.md) and [delivery report](docs/phase-3-delivery.md). The [previous stabilization audit](docs/audit-2026-10-29.md) records the verified 75-unit/API-test and 225-browser-test baseline.
 
 A working grocery comparison MVP for India, built with Next.js App Router, strict TypeScript, React, Zod, Lucide and custom responsive CSS. It runs without paid APIs, a database, credentials or environment variables.
 
@@ -32,15 +32,19 @@ The server binds to loopback. Set a different port with `npm run dev -- --port 3
 - A responsive landing page with natural-language input, original grocery illustrations and a working example.
 - Adding multiple items, adding individual items, editing canonical package quantities and brand preferences, changing pack counts, and removing items.
 - Three illustrative service areas with different availability: Bengaluru, Pune and Hyderabad.
+- Optional six-digit PIN validation, explicit illustrative coverage and unavailable/uncertain states. PIN syntax never implies actual retailer coverage.
 - Deterministic exact, equivalent and similar matching. Alternatives require individual approval; approvals reset when list or preferences change.
 - Actual server-side complete-basket optimization, the cheapest feasible single-store option, and a fewer-deliveries strategy with a configurable extra budget.
 - Retailer exclusions and a maximum of one, two or three orders.
 - Item allocations, normalized unit prices, store subtotals, delivery, handling, platform and small-order fees, confirmed demo discounts, and a final payable total.
 - A valid single-store savings reference, or no savings claim when that reference is unavailable.
+- Provider capabilities, provenance, exact unit-price ratios, price contexts and complete basket quotes through a working simulated-authorized reference connector. No real retailer credentials or approval are implied.
+- Fresh/aging/stale/expired/unknown snapshot states, short local catalog caching, explicit refresh, quote invalidation and safe partial-response handling. Stale/expired data cannot be used for a current checkout preview or export.
+- A provider availability disclosure and collapsible simulation controls for stale/expired prices, a provider timeout, partial catalog and missing order fees.
 - Grouped smart carts, explanations of free-delivery thresholds, downloadable text shopping plans and a clearly disabled checkout preview.
 - Loading, empty, invalid-input, missing-product and failed-request states; keyboard navigation, native dialog focus/escape behavior and reduced-motion support.
 
-Try the weekly essentials example, select **Compare my list**, review matches, then select **Find my best basket**. The verified default example returns **₹1,039 across two stores**. The cheapest single-store basket is **₹1,055 at Freshlane**, a valid **₹16** reference saving. With the default ₹20 tolerance, the fewer-deliveries strategy selects that ₹1,055 single-store basket. These are fixture results, not real shopping quotes.
+Try the weekly essentials example, select **Compare my list**, review matches, then select **Find my best basket**. The verified default example returns **₹1,039 across two stores**. The cheapest single-store basket is **₹1,055 at Freshlane**, a valid **₹16 estimated** reference saving. With the default ₹20 tolerance, the fewer-deliveries strategy selects that ₹1,055 single-store basket. These are fixture results, not real shopping quotes.
 
 ## Architecture
 
@@ -48,13 +52,14 @@ Try the weekly essentials example, select **Compare my list**, review matches, t
 | --- | --- | --- |
 | Domain | `lib/domain.ts` | Strict Zod schemas, integer paise, quantities, products and result contracts |
 | Data | `lib/catalog.ts` | Async retailer adapter interface and 42 validated fictional offers per service area |
+| Providers | `lib/providers/` | Capabilities, normalized offers, serviceability, freshness, cache, reliability, reference connector and basket repricing |
 | Matching | `lib/matching.ts` | Text parsing, exact unit normalization, package matching and approval requirements |
 | Optimization | `lib/optimizer.ts` | Deterministic allocation search and order-level fee evaluation |
 | API | `app/api/compare/route.ts` | Bounded JSON input, validation, trusted demo data and server-side computation |
 | Experience | `components/` | List editing, match review, preferences, results, cart and checkout preview |
 | Styling | `app/globals.css` | Self-contained responsive styles and reduced-motion behavior |
 
-The frontend submits requests and approved match IDs, not product prices or fee calculations. The server obtains those from the adapter. React escapes user text. The API rejects unknown fields and unsupported stores/locations, enforces unique item IDs, limits bodies to 32 KB while reading, and disables response caching. Browser security headers restrict framing and unused device/payment capabilities. No external LLM is involved.
+The frontend submits requests and approved match IDs, not product prices or fee calculations. The server obtains those from the adapter. React escapes user text. The API rejects unknown fields and unsupported stores/locations, enforces unique item IDs, limits bodies to 32 KB and five seconds while reading, and disables response caching. A process-local budget limits requests and concurrency; provider calls have bounded timeouts/retries and rate limits. Browser security headers restrict framing and unused device/payment capabilities. No external LLM is involved.
 
 Supabase is intentionally deferred: there is no account or durable shopping-history requirement in this MVP. Lists live in the current page's memory and reset on reload. Do not put secrets in source files; `.env*` files are ignored for future authorized integrations.
 
@@ -84,7 +89,7 @@ There is deliberately no item-price-only pruning: a higher merchandise subtotal 
 
 The MVP accepts **1–12 list lines**, **1–20 requested packs per line**, a base quantity of **1–50,000 canonical units**, and **up to 3 fictional retailers**. Search has a shared **200,000-node cap**, including single-store seeding. Runtime is exponential in the number of eligible choices; the node cap bounds search work, not wall-clock duration. A 12-line test exercises the actual cap. On reaching it, the UI says **best found**, and neither optimality nor infeasibility is claimed. An exhaustive result is globally optimal **within the supplied eligible catalog and restrictions**. No partial list is represented as a complete basket.
 
-The reference is the cheapest eligible single-store basket found in the same search. A bounded search explicitly calls it “best found.” If none exists, savings are null. The engine does not optimize coupons needing an account, delivery time slots, inventory quantities, overlapping promotions or unknown fees.
+The reference is the cheapest eligible single-store basket found in the same search. A bounded search explicitly calls it “best found.” The provider service additionally requires current, complete, comparable products, quantities, location, conditions and source quality across displayed strategies; otherwise savings are null. It reprices the complete orders and ranks the quoted candidates again. Changed provider totals are explicitly limited to repriced candidates, never a proven final-price optimum. The engine does not optimize coupons needing an account, delivery time slots, inventory quantities, overlapping promotions or unknown fees.
 
 One line uses a single retailer SKU with an integer pack count. It cannot combine several different package sizes or split the same requested line between retailers. The optimizer never adds extra unrequested goods to cross a delivery threshold. A future larger catalog should move search into a worker/queue and consider an exact solver or stronger admissible bounds, retaining honest best-found reporting.
 
@@ -121,9 +126,9 @@ Playwright starts and stops a production server when port 3000 is free. If a ser
 
 The app is Vercel-ready through standard Next.js detection: import this repository, use Node.js 24, `npm ci --ignore-scripts`, and `npm run build`. Keep the comparison route on the Node.js runtime. No Vercel deployment has been performed or claimed.
 
-Before public production use, add deployment-level rate limiting/abuse controls, operational monitoring, durable quote/freshness handling, privacy and retention policies, provider contract tests, broader browser/device checks and load tests. The API's input/search limits are not a replacement for a production rate limiter. Request aborts in the browser do not interrupt synchronous server enumeration.
+Before unrestricted public production use, add deployment-level distributed rate limiting, operational monitoring, privacy/retention policies, broader browser/device checks and load tests. Local rate/concurrency limits are implemented but are not shared between server instances. Provider contract tests and quote/freshness handling now run locally; approved live access needs provider-specific policies and an authenticated server transport. Request aborts in the browser do not interrupt synchronous server enumeration.
 
-See [the integration research and authorized-provider requirements](docs/integrations.md). Live checkout additionally needs fresh retailer quotes, explicit final consent, authorized ordering interfaces, idempotency, reconciliation, customer support and a compliant payment provider. Public product-search access alone does not establish order-placement rights.
+See the [current official-source integration matrix](docs/retailer-integration-matrix.md) and [exact onboarding requirements](docs/provider-architecture.md#enabling-the-first-legitimate-provider). Earlier research remains in [the original integration notes](docs/integrations.md). Live checkout additionally needs fresh retailer quotes, explicit final consent, authorized ordering interfaces, idempotency, reconciliation, customer support and a compliant payment provider. Public product-search access alone does not establish order-placement rights.
 
 ## Repository workflow
 
