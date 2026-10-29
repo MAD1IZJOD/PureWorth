@@ -9,6 +9,8 @@ import { ComparisonResults } from "./comparison-results";
 import { ListComposer } from "./list-composer";
 import { MatchingReview } from "./matching-review";
 import { ProductArt } from "./product-art";
+import { PricingStatus } from "./pricing-status";
+import type { Simulation } from "../lib/providers/contracts";
 
 function goTo(id: string, focus = false) {
   setTimeout(() => {
@@ -22,6 +24,8 @@ export function PureWorthApp() {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [draft, setDraft] = useState("");
   const [location, setLocation] = useState<Location>("bengaluru");
+  const [pin, setPin] = useState("");
+  const [simulation, setSimulation] = useState<Simulation>("normal");
   const [retailerIds, setRetailerIds] = useState(["freshlane", "daily", "pantry"]);
   const [maxRetailers, setMaxRetailers] = useState(3);
   const [tolerance, setTolerance] = useState(2000);
@@ -45,18 +49,19 @@ export function PureWorthApp() {
   }
   function loadExample() { changeItems(parseShoppingList(exampleList)); setNotice("Example loaded. These are fictional demo prices and stores."); goTo("shopping-list"); }
 
-  async function compare(nextStage: "review" | "results") {
+  async function compare(nextStage: "review" | "results", refresh = false) {
     setError("");
-    const input = comparisonSchema.safeParse({ items, location, retailerIds, maxRetailers, approved, fewerDeliveryTolerance: tolerance });
+    const input = comparisonSchema.safeParse({ items, location, ...(pin.trim() ? { pin: pin.trim() } : {}), simulation: refresh ? "normal" : simulation, retailerIds, maxRetailers, approved, fewerDeliveryTolerance: tolerance });
     if (!input.success) { setError(!retailerIds.length ? "Choose at least one demo store before comparing." : input.error.issues[0]?.message ?? "Review your list and store preferences"); goTo("shopping-error", true); return; }
     setBusy(true); setNotice(nextStage === "review" ? "Checking package sizes and demo availability…" : "Calculating complete baskets, including all order fees…");
+    if (refresh) setSimulation("normal");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
     try {
       const result = await fetch("/api/compare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input.data), signal: controller.signal });
       const data = await result.json().catch(() => { throw new Error("Could not read the comparison response. Your list is still here; please try again."); });
       if (!result.ok) throw new Error(data.error ?? "Comparison failed. Please try again.");
-      setResponse(data as ComparisonResponse); setStage(nextStage); setNotice(nextStage === "review" ? "Matches ready. Review exact matches and optional alternatives." : "Comparison ready. All order fees are included.");
+      setResponse(data as ComparisonResponse); setStage(nextStage); setNotice(data.pricing && !data.pricing.comparisonComplete ? "Comparison is incomplete. Review provider status and refresh to retry; no savings are claimed." : nextStage === "review" ? "Matches ready. Review exact matches and optional alternatives." : "Comparison ready. All order fees are included in this demo estimate.");
       goTo(nextStage === "review" ? "match-review" : "comparison-results", true);
     } catch (e) { setError(e instanceof Error && e.name === "AbortError" ? "Comparison timed out. Your list is saved on this page; please try again." : e instanceof Error ? e.message : "Could not compare your list. Please try again."); setNotice(""); goTo("shopping-error", true); }
     finally { clearTimeout(timeout); setBusy(false); }
@@ -74,14 +79,15 @@ export function PureWorthApp() {
 
       <section className="workspace-section container" aria-label="Build and compare your basket"><div className="workspace-top"><div><span className="eyebrow">LET’S MAKE YOUR NEXT SHOP COUNT</span><h2>A little planning. More in your pocket.</h2></div><label className="location-control"><MapPin size={17} /><span className="sr-only">Demo service area</span><select aria-label="Demo service area" value={location} disabled={busy} onChange={event => { setLocation(event.target.value as Location); invalidate("Demo service area changed. Compare again to refresh availability."); }}><option value="bengaluru">Bengaluru · Demo</option><option value="pune">Pune · Demo</option><option value="hyderabad">Hyderabad · Demo</option></select><ChevronDown size={14} /></label></div>
         <div className="feedback" aria-live="polite" role="status">{busy && <LoaderCircle size={16} className="spin" />}{notice}</div>{error && <div id="shopping-error" tabIndex={-1} className="error-banner" role="alert"><CircleHelp size={19} /><p>{error}</p><button className="text-button" onClick={() => setError("")}>Dismiss</button></div>}
+        <PricingStatus location={location} pin={pin} onPin={next => { setPin(next); invalidate("PIN changed. Compare again to check the selected area's illustrative coverage."); }} simulation={simulation} onSimulation={next => { setSimulation(next); invalidate("Simulation changed. Compare again to test this provider response state."); }} pricing={response?.pricing} busy={busy} canRefresh={items.length > 0} onRefresh={() => void compare(stage === "results" ? "results" : "review", true)} />
         <div className="workspace-grid"><ListComposer items={items} busy={busy} onChange={changeItems} onAdd={addItems} onExample={loadExample} onCompare={() => void compare("review")} />
           <aside className="preferences"><div className="panel preferences-panel"><div className="preferences-title"><SlidersHorizontal size={18} /><h3>Your shop, your rules.</h3></div><fieldset disabled={busy} className="unstyled-fieldset"><legend className="field-legend">Compare fictional stores</legend>{retailers.map(retailer => <label className="retailer-option" key={retailer.id}><span className={`store-logo small ${retailer.color}`}>{retailer.initials}</span><span>{retailer.name}<small>Simulated retailer</small></span><input type="checkbox" checked={retailerIds.includes(retailer.id)} onChange={() => { setRetailerIds(ids => ids.includes(retailer.id) ? ids.filter(id => id !== retailer.id) : [...ids, retailer.id]); invalidate("Store preferences changed. Compare your list again."); }} /></label>)}
             <label className="preference-field">Maximum store orders<select value={maxRetailers} onChange={event => { setMaxRetailers(Number(event.target.value)); invalidate("Order limit changed. Compare your list again."); }}><option value={1}>1 store · keep it simple</option><option value={2}>Up to 2 stores</option><option value={3}>Up to 3 stores</option></select></label>
             <label className="preference-field">Extra budget for fewer deliveries<select value={tolerance} onChange={event => { setTolerance(Number(event.target.value)); invalidate("Delivery preference changed. Compare your list again."); }}><option value={0}>₹0 · exact lowest price</option><option value={1000}>Up to ₹10 more</option><option value={2000}>Up to ₹20 more</option><option value={5000}>Up to ₹50 more</option></select></label>
           </fieldset></div><div className="worth-note"><span className="note-icon"><Leaf size={19} /></span><h3>Cheapest item ≠ cheapest shop.</h3><p>A lower shelf price can come with another delivery fee. PureWorth compares your entire basket, fees and all.</p><a href="#how-it-works">See how it works <ArrowDown size={14} /></a></div></aside>
         </div>
-        {response && stage === "review" && <MatchingReview matches={response.matches} retailers={response.retailers} approved={approved} onApproval={id => setApproved(current => current.includes(id) ? current.filter(x => x !== id) : [...current, id])} onOptimize={() => void compare("results")} busy={busy} />}
-        {response && stage === "results" && <ComparisonResults result={response.result} tolerance={tolerance} onReview={() => { setStage("review"); goTo("match-review", true); }} />}
+        {response && stage === "review" && <MatchingReview matches={response.matches} retailers={response.retailers} approved={approved} onApproval={id => { setApproved(current => current.includes(id) ? current.filter(x => x !== id) : [...current, id]); setResponse(current => current ? { ...current, pricing: undefined } : current); setNotice("Alternative choices changed. Find your best basket to generate fresh quotes."); }} onOptimize={() => void compare("results")} busy={busy} />}
+        {response && stage === "results" && <ComparisonResults result={response.result} pricing={response.pricing} busy={busy} onRefresh={() => void compare("results", true)} tolerance={tolerance} onReview={() => { setStage("review"); goTo("match-review", true); }} />}
       </section>
 
       <section id="how-it-works" className="how-section container" aria-labelledby="how-title"><div className="how-heading"><span className="eyebrow">LESS TAB-HOPPING. MORE LIVING.</span><h2 id="how-title">From “need this” to “worth it”.</h2><p>Three simple steps. One well-considered basket.</p></div><div className="how-grid">{[
