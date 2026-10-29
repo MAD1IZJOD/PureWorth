@@ -37,7 +37,7 @@ test("PIN validation never assigns a nearby area and changes invalidate results"
   await page.getByRole("button", { name: "Try a weekly essentials list" }).click();
   await page.getByLabel("Delivery PIN").fill("012345");
   await page.getByRole("button", { name: "Compare my list", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("six-digit Indian PIN");
+  await expect(page.locator("#shopping-error")).toContainText("six-digit Indian PIN");
   await page.getByLabel("Delivery PIN").fill("999999");
   await page.getByRole("button", { name: "Compare my list", exact: true }).click();
   const unavailable = await optimize(page);
@@ -117,7 +117,7 @@ test("a rate-limit response preserves the list and retry recovers", async ({ pag
   await page.getByRole("button", { name: "Try a weekly essentials list" }).click();
   await page.route("**/api/compare", async route => { await route.fulfill({ status: 429, contentType: "application/json", headers: { "Retry-After": "1" }, body: JSON.stringify({ error: "Comparison is busy. Retry shortly." }) }); }, { times: 1 });
   await page.getByRole("button", { name: "Compare my list", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("Retry shortly");
+  await expect(page.locator("#shopping-error")).toContainText("Retry shortly");
   await expect(page.getByTestId("shopping-item")).toHaveCount(5);
   await page.getByRole("button", { name: "Compare my list", exact: true }).click();
   expect((await optimize(page)).pricing!.comparisonComplete).toBe(true);
