@@ -81,6 +81,7 @@ export const comparisonSchema = z.object({
   fewerDeliveryTolerance: moneySchema.max(10_000).default(2000),
   pin: z.string().regex(/^[1-9]\d{5}$/, "Enter a six-digit Indian PIN code beginning with 1–9").optional(),
   simulation: z.enum(["normal", "stale", "expired", "timeout", "partial", "missing-fees"]).optional(),
+  refresh: z.boolean().optional(),
 }).strict();
 export type ComparisonInput = z.infer<typeof comparisonSchema>;
 export type ComparisonResponse = { matches: ItemMatches[]; result: OptimizationResult; retailers: Retailer[]; pricing?: PricingDiagnostics };
