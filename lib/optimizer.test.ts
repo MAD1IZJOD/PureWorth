@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { demoCatalog, retailers } from "./catalog";
 import { roundedRatio, type FeeRules, type ItemMatches, type Match, type Retailer } from "./domain";
-import { parseShoppingList } from "./matching";
-import { optimizeBasket, priceOrder } from "./optimizer";
+import { exampleList, matchProducts, parseShoppingList } from "./matching";
+import { MAX_SEARCH_NODES, optimizeBasket, priceOrder } from "./optimizer";
 
 const free: FeeRules = { delivery: 0, freeDeliveryAt: null, minimumOrder: 0, handling: 0, platform: 0, smallOrderBelow: 0, smallOrderFee: 0, other: 0, discount: null };
 function store(id: string, fees: Partial<FeeRules> = {}): Retailer { return { id, name: id, initials: id, color: "green", fees: { ...free, ...fees } }; }
@@ -128,4 +128,20 @@ describe("complete basket optimization", () => {
     }
   });
   it("the demo retailers all have validated fee models", () => expect(retailers).toHaveLength(3));
+  it("exercises the real 200,000-node cap on a large basket", () => {
+    const groups = Array.from({ length: 12 }, (_, i) => group(i, [["a", 1000 + i], ["b", 1100 + i], ["c", 1200 + i]]));
+    const started = performance.now();
+    const result = optimizeBasket(groups, [store("a"), store("b"), store("c")]);
+    expect(result.status).toBe("bounded"); expect(result.explored).toBe(MAX_SEARCH_NODES);
+    expect(result.cheapest?.orders.flatMap(o => o.lines)).toHaveLength(12);
+    console.info(`12-item bounded search: ${result.explored} nodes in ${Math.round(performance.now() - started)} ms`);
+  }, 10_000);
+  it("demonstrates a cheaper split basket and a marginally dearer one-store option", () => {
+    const result = optimizeBasket(matchProducts(parseShoppingList(exampleList), demoCatalog("bengaluru"), "bengaluru"), retailers);
+    expect(result.cheapest?.total).toBe(103900);
+    expect(result.cheapest?.orders).toHaveLength(2);
+    expect(result.singleStore?.total).toBe(105500);
+    expect(result.fewerDeliveries?.orders).toHaveLength(1);
+    expect(result.savings).toBe(1600);
+  });
 });
