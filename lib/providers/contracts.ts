@@ -39,6 +39,7 @@ export const offerSchema = z.object({
   eligible: z.boolean(), conditionsKey: z.string().min(1).max(120),
 }).strict().superRefine((o, ctx) => {
   const p = o.product;
+  if (o.id !== p.id || !p.retailerId || !p.retailerProductId) ctx.addIssue({ code: "custom", message: "Offer identity must match the normalized retailer product identity" });
   const scale = p.packageUnit === "kg" || p.packageUnit === "L" ? 1000 : 1;
   const unit = p.packageUnit === "kg" ? "g" : p.packageUnit === "L" ? "ml" : p.packageUnit;
   if (p.canonicalQuantity !== p.packageQuantity * p.packageCount * scale || p.canonicalUnit !== unit ||
