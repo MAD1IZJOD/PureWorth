@@ -35,6 +35,17 @@ it("rejects a misleading JSON content type", async () => {
   const req = request(); req.headers.set("Content-Type", "text/application/jsonish");
   expect((await POST(req)).status).toBe(415);
 });
+it("cancels a stalled body and releases the concurrency slot", async () => {
+  vi.useFakeTimers();
+  try {
+    let cancelled = false;
+    const init = { method: "POST", headers: { "Content-Type": "application/json" }, body: new ReadableStream({ cancel() { cancelled = true; } }), duplex: "half" };
+    const pending = POST(new Request("http://localhost/api/compare", init));
+    await vi.advanceTimersByTimeAsync(5001);
+    expect((await pending).status).toBe(408); expect(cancelled).toBe(true);
+    expect((await POST(new Request("http://localhost/api/compare", { method: "POST", body: "invalid" }))).status).toBe(415);
+  } finally { vi.useRealTimers(); }
+});
 it("enforces the HTTP abuse budget with a retry hint", async () => {
   vi.resetModules();
   const isolated = await import("./route");
