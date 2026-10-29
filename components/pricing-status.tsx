@@ -10,13 +10,16 @@ import type { PricingDiagnostics } from "../lib/providers/metadata";
 import { providerDefinitions } from "../lib/providers/registry";
 
 export function usePricingStatus(pricing?: PricingDiagnostics) {
-  const [clock, setClock] = useState(0);
+  const [clock, setClock] = useState({ timestamp: 0, generation: "" });
   useEffect(() => {
     if (!pricing) return;
-    const timer = setInterval(() => setClock(Date.now()), 1000);
+    const receivedAt = Date.now();
+    const serverAt = Date.parse(pricing.generatedAt);
+    const timer = setInterval(() => setClock({ timestamp: serverAt + Math.max(0, Date.now() - receivedAt), generation: pricing.generatedAt }), 1000);
     return () => clearInterval(timer);
   }, [pricing]);
-  const now = Math.max(clock, pricing ? Date.parse(pricing.generatedAt) : 0);
+  // Measure elapsed client time against the server snapshot, not the device wall-clock offset.
+  const now = pricing && clock.generation === pricing.generatedAt ? clock.timestamp : pricing ? Date.parse(pricing.generatedAt) : 0;
   let freshness = pricing?.freshness ?? "UNKNOWN";
   const expired = !!pricing?.expiresAt && Date.parse(pricing.expiresAt) <= now;
   if (expired) freshness = "EXPIRED";
