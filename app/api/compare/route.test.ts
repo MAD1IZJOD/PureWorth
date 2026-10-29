@@ -32,6 +32,21 @@ it("rejects cross-origin browser requests", async () => {
   const req = request(); req.headers.set("Origin", "https://example.com");
   expect((await POST(req)).status).toBe(403);
 });
+it("accepts the browser Host when the server URL uses an internal origin", async () => {
+  const req = request();
+  req.headers.set("Host", "127.0.0.1:3000");
+  req.headers.set("Origin", "http://127.0.0.1:3000");
+  expect((await POST(req)).status).toBe(200);
+});
+it("rejects malformed origins and does not trust forwarded hosts", async () => {
+  const req = request();
+  req.headers.set("Origin", "null");
+  expect((await POST(req)).status).toBe(403);
+  const forged = request();
+  forged.headers.set("Origin", "https://evil.example");
+  forged.headers.set("X-Forwarded-Host", "evil.example");
+  expect((await POST(forged)).status).toBe(403);
+});
 it("returns a truthful infeasible response for unknown products", async () => {
   const response = await POST(request({ ...body, items: parseShoppingList("soap 2 packs") }));
   const result: ComparisonResponse = await response.json();
