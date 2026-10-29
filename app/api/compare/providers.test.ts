@@ -57,3 +57,18 @@ it("enforces the HTTP abuse budget with a retry hint", async () => {
   expect(response.status).toBe(429); expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
   expect(await response.json()).toEqual({ error: "Comparison is busy. Your list is still here; retry shortly." });
 });
+it("reuses a location snapshot and explicitly refreshes its provenance clock", async () => {
+  vi.useFakeTimers(); vi.resetModules();
+  try {
+    vi.setSystemTime(new Date("2026-10-29T10:00:00Z"));
+    const isolated = await import("./route");
+    const first: ComparisonResponse = await (await isolated.POST(request())).json();
+    vi.setSystemTime(new Date("2026-10-29T10:00:01Z"));
+    const cached: ComparisonResponse = await (await isolated.POST(request())).json();
+    expect(cached.pricing!.offers["freshlane-milk"].freshness.expiresAt).toBe(first.pricing!.offers["freshlane-milk"].freshness.expiresAt);
+    expect(cached.pricing!.offers["freshlane-milk"].freshness.ageMs).toBe(1000);
+    const refreshed: ComparisonResponse = await (await isolated.POST(request({ refresh: true }))).json();
+    expect(refreshed.pricing!.offers["freshlane-milk"].freshness.ageMs).toBe(0);
+    expect(refreshed.pricing!.offers["freshlane-milk"].freshness.expiresAt).not.toBe(first.pricing!.offers["freshlane-milk"].freshness.expiresAt);
+  } finally { vi.useRealTimers(); }
+});
