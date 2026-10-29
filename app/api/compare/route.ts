@@ -29,6 +29,8 @@ async function compareRequest(request: Request): Promise<Response> {
   const reader = request.body?.getReader();
   if (!reader) return fail("A shopping list is required", 400);
   let text = "", size = 0;
+  let readExpired = false;
+  const readTimer = setTimeout(() => { readExpired = true; void reader.cancel().catch(() => {}); }, 5000);
   const decoder = new TextDecoder("utf-8", { fatal: true });
   try {
     while (true) {
@@ -38,8 +40,10 @@ async function compareRequest(request: Request): Promise<Response> {
       if (size > 32_768) { await reader.cancel(); return fail("Request exceeds the 32 KB limit", 413); }
       text += decoder.decode(value, { stream: true });
     }
+    if (readExpired) return fail("Request body timed out. Please try again.", 408);
     text += decoder.decode();
-  } catch { return fail("Could not read the request", 400); }
+  } catch { return fail(readExpired ? "Request body timed out. Please try again." : "Could not read the request", readExpired ? 408 : 400); }
+  finally { clearTimeout(readTimer); reader.releaseLock(); }
   let raw: unknown;
   try { raw = JSON.parse(text); } catch { return fail("Invalid JSON request", 400); }
   const input = comparisonSchema.safeParse(raw);
