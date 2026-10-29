@@ -132,7 +132,7 @@ summary{cursor:pointer}
 .worth-note p{font-size:11px;color:#626d5a;line-height:1.8;margin-top:10px}
 .worth-note a{display:flex;gap:6px;align-items:center;font-size:10px;color:#536f40;margin-top:13px;font-weight:600}
 .error-banner{display:flex;gap:10px;align-items:center;padding:14px 18px;background:#fcf0e9;border:1px solid #ebccbc;border-radius:9px;margin-bottom:20px;color:#974e36;font-size:12px}
-.error-banner p{flex:1}
+.error-banner p{flex:1;min-width:0;overflow-wrap:anywhere}
 .error-banner button{color:#974e36}
 .review-panel{margin-top:34px;padding-bottom:26px}
 .section-intro{padding:0 26px;font-size:12px;line-height:1.8;color:var(--muted);max-width:900px}
