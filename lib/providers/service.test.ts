@@ -144,4 +144,21 @@ describe("provider comparison service", () => {
     expect(response.pricing!.current).toBe(false); expect(response.pricing!.comparisonComplete).toBe(false);
     expect(response.result.savings).toBeNull(); expect(response.result.reference).toBeNull();
   });
+  it("chooses the cheapest repriced candidate when new per-order fees reverse the model ranking", async () => {
+    const providers = bindings();
+    for (const binding of providers) {
+      const original = binding.provider.getBasketQuote.bind(binding.provider);
+      binding.provider.getBasketQuote = async request => {
+        const quote = await original(request);
+        if (quote.ok && quote.value.finalPayable !== null && quote.value.charges) {
+          quote.value.charges.push({ label: "Repriced order fee", amount: 5000 }); quote.value.finalPayable += 5000;
+        }
+        return quote;
+      };
+    }
+    const response = await compareProviders({ ...body(), delivery: demoLocation("bengaluru") }, providers, { now: () => now });
+    expect(response.result.cheapest!.total).toBe(110500);
+    expect(response.result.cheapest!.orders).toHaveLength(1);
+    expect(response.pricing!.optimality).toBe("REPRICED_CANDIDATES_ONLY");
+  });
 });
