@@ -7,7 +7,8 @@ test("skip link, navigation, footer links and retailer disclosure work", async (
   const skip = page.getByRole("link", { name: "Skip to shopping list" });
   await expect(skip).toBeFocused(); await skip.press("Enter");
   await expect(page.locator("#shopping-list")).toBeFocused();
-  for (const link of await page.locator("a[href^='#']").all()) {
+  // The keyboard-only skip link was exercised above; it returns off screen.
+  for (const link of await page.locator("a[href^='#']:not(.skip-link)").all()) {
     const hash = await link.getAttribute("href");
     expect(hash).not.toBe("#");
     await expect(page.locator(hash!)).toHaveCount(1);
@@ -115,4 +116,32 @@ test("HTML gateway failures show a useful error and allow retry", async ({ page 
   await page.unroute("**/api/compare");
   await page.getByRole("button", { name: "Compare my list", exact: true }).click();
   await expect(page.locator("#match-review")).toBeVisible();
+});
+
+test("two-store limits and every delivery-budget option reach the optimizer", async ({ page }) => {
+  await page.getByRole("button", { name: "Try a weekly essentials list" }).click();
+  await page.getByLabel("Maximum store orders").selectOption("2");
+  for (const budget of ["0", "1000", "2000", "5000"]) {
+    await page.getByLabel("Extra budget for fewer deliveries").selectOption(budget);
+    await page.getByRole("button", { name: "Compare my list", exact: true }).click();
+    await expect(page.locator("#match-review")).toBeVisible();
+    const promise = page.waitForResponse(r => r.url().endsWith("/api/compare"));
+    await page.getByRole("button", { name: "Find my best basket", exact: true }).click();
+    const response = await promise;
+    expect(response.request().postDataJSON()).toMatchObject({ maxRetailers: 2, fewerDeliveryTolerance: Number(budget) });
+    await page.getByRole("button", { name: /Fewer deliveries/ }).click();
+    await expect(page.locator(".store-order")).toHaveCount(Number(budget) < 1600 ? 2 : 1);
+  }
+});
+
+test("long brand constraints and long validation messages fit the screen", async ({ page }) => {
+  await page.getByLabel("What’s on your list?").fill(`${"W".repeat(50)} rice 1 kg`);
+  await page.getByRole("button", { name: "Build my list", exact: true }).click();
+  await page.getByRole("button", { name: "Compare my list", exact: true }).click();
+  await expect(page.locator("#match-review")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByLabel("What’s on your list?").fill(`Amul ${"W".repeat(120)} milk 1 L`);
+  await page.getByRole("button", { name: "Build my list", exact: true }).click();
+  await expect(page.locator("#shopping-error")).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
