@@ -12,8 +12,12 @@ import { ProductArt } from "./product-art";
 import { PricingStatus } from "./pricing-status";
 import type { Simulation } from "../lib/providers/contracts";
 
+let navigationTimer: ReturnType<typeof setTimeout> | undefined;
+function cancelNavigation() { clearTimeout(navigationTimer); navigationTimer = undefined; }
 function goTo(id: string, focus = false) {
-  setTimeout(() => {
+  cancelNavigation();
+  navigationTimer = setTimeout(() => {
+    navigationTimer = undefined;
     const element = document.getElementById(id);
     if (focus) element?.focus({ preventScroll: true });
     element?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
@@ -37,6 +41,7 @@ export function PureWorthApp() {
   const [notice, setNotice] = useState("");
 
   function invalidate(message = "Your list is ready to compare.") {
+    cancelNavigation();
     setResponse(null); setStage("compose"); setApproved([]); setError(""); setNotice(message);
   }
   function changeItems(next: ShoppingItem[]) { setItems(next); invalidate(); }
