@@ -129,4 +129,19 @@ describe("provider comparison service", () => {
     const response = await compareProviders({ ...body(), retailerIds: ["blinkit"], delivery: demoLocation("bengaluru") }, [], { now: () => now });
     expect(response.result.cheapest).toBeNull(); expect(response.pricing!.comparisonComplete).toBe(false);
   });
+  it("does not elevate simulated authorization into real-provider authorization", async () => {
+    const providers = bindings().map(binding => ({ ...binding, sourceType: "AUTHORIZED_API" as const }));
+    const response = await compareProviders({ ...body(), delivery: demoLocation("bengaluru") }, providers, { now: () => now });
+    expect(response.matches.flatMap(group => group.matches)).toHaveLength(0);
+    expect(response.result.savings).toBeNull(); expect(response.pricing!.comparisonComplete).toBe(false);
+    expect(response.pricing!.mode).toBe("DEMO DATA"); // no actual live offer was received
+  });
+  it("rechecks earlier quotes after later provider calls consume their lifetime", async () => {
+    let clock = now; const providers = bindings();
+    const original = providers[2].provider.getBasketQuote.bind(providers[2].provider);
+    providers[2].provider.getBasketQuote = async request => { const quote = await original(request); clock = now + 300001; return quote; };
+    const response = await compareProviders({ ...body(), delivery: demoLocation("bengaluru") }, providers, { now: () => clock });
+    expect(response.pricing!.current).toBe(false); expect(response.pricing!.comparisonComplete).toBe(false);
+    expect(response.result.savings).toBeNull(); expect(response.result.reference).toBeNull();
+  });
 });
