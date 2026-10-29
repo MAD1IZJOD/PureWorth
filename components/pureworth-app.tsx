@@ -41,14 +41,14 @@ export function PureWorthApp() {
       const parsed = parseShoppingList(text).map(item => ({ ...item, id: crypto.randomUUID() }));
       if (parsed.length + items.length > 12) throw new Error("Compare up to 12 different items. Remove an item before adding more.");
       changeItems([...items, ...parsed]); setNotice(`${parsed.length} ${parsed.length === 1 ? "item added" : "items added"}. Review quantities and brands below.`); goTo("shopping-list"); return true;
-    } catch (e) { setError(e instanceof Error ? e.message : "Please review your grocery list"); return false; }
+    } catch (e) { setError(e instanceof Error ? e.message : "Please review your grocery list"); goTo("shopping-error", true); return false; }
   }
   function loadExample() { changeItems(parseShoppingList(exampleList)); setNotice("Example loaded. These are fictional demo prices and stores."); goTo("shopping-list"); }
 
   async function compare(nextStage: "review" | "results") {
     setError("");
     const input = comparisonSchema.safeParse({ items, location, retailerIds, maxRetailers, approved, fewerDeliveryTolerance: tolerance });
-    if (!input.success) { setError(input.error.issues[0]?.message ?? "Review your list and store preferences"); return; }
+    if (!input.success) { setError(!retailerIds.length ? "Choose at least one demo store before comparing." : input.error.issues[0]?.message ?? "Review your list and store preferences"); goTo("shopping-error", true); return; }
     setBusy(true); setNotice(nextStage === "review" ? "Checking package sizes and demo availability…" : "Calculating complete baskets, including all order fees…");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
@@ -58,7 +58,7 @@ export function PureWorthApp() {
       if (!result.ok) throw new Error(data.error ?? "Comparison failed. Please try again.");
       setResponse(data as ComparisonResponse); setStage(nextStage); setNotice(nextStage === "review" ? "Matches ready. Review exact matches and optional alternatives." : "Comparison ready. All order fees are included.");
       goTo(nextStage === "review" ? "match-review" : "comparison-results", true);
-    } catch (e) { setError(e instanceof Error && e.name === "AbortError" ? "Comparison timed out. Your list is saved on this page; please try again." : e instanceof Error ? e.message : "Could not compare your list. Please try again."); setNotice(""); }
+    } catch (e) { setError(e instanceof Error && e.name === "AbortError" ? "Comparison timed out. Your list is saved on this page; please try again." : e instanceof Error ? e.message : "Could not compare your list. Please try again."); setNotice(""); goTo("shopping-error", true); }
     finally { clearTimeout(timeout); setBusy(false); }
   }
 
@@ -73,7 +73,7 @@ export function PureWorthApp() {
       <div className="demo-strip"><div className="container"><InfoBadge /><p><strong>A real optimizer. Demonstration data.</strong> Explore three fictional stores. No live retailer prices, payments or orders.</p><a href="#data-and-trust">About the data <ArrowRight size={14} /></a></div></div>
 
       <section className="workspace-section container" aria-label="Build and compare your basket"><div className="workspace-top"><div><span className="eyebrow">LET’S MAKE YOUR NEXT SHOP COUNT</span><h2>A little planning. More in your pocket.</h2></div><label className="location-control"><MapPin size={17} /><span className="sr-only">Demo service area</span><select aria-label="Demo service area" value={location} disabled={busy} onChange={event => { setLocation(event.target.value as Location); invalidate("Demo service area changed. Compare again to refresh availability."); }}><option value="bengaluru">Bengaluru · Demo</option><option value="pune">Pune · Demo</option><option value="hyderabad">Hyderabad · Demo</option></select><ChevronDown size={14} /></label></div>
-        <div className="feedback" aria-live="polite" role="status">{busy && <LoaderCircle size={16} className="spin" />}{notice}</div>{error && <div className="error-banner" role="alert"><CircleHelp size={19} /><p>{error}</p><button className="text-button" onClick={() => setError("")}>Dismiss</button></div>}
+        <div className="feedback" aria-live="polite" role="status">{busy && <LoaderCircle size={16} className="spin" />}{notice}</div>{error && <div id="shopping-error" tabIndex={-1} className="error-banner" role="alert"><CircleHelp size={19} /><p>{error}</p><button className="text-button" onClick={() => setError("")}>Dismiss</button></div>}
         <div className="workspace-grid"><ListComposer items={items} busy={busy} onChange={changeItems} onAdd={addItems} onExample={loadExample} onCompare={() => void compare("review")} />
           <aside className="preferences"><div className="panel preferences-panel"><div className="preferences-title"><SlidersHorizontal size={18} /><h3>Your shop, your rules.</h3></div><fieldset disabled={busy} className="unstyled-fieldset"><legend className="field-legend">Compare fictional stores</legend>{retailers.map(retailer => <label className="retailer-option" key={retailer.id}><span className={`store-logo small ${retailer.color}`}>{retailer.initials}</span><span>{retailer.name}<small>Simulated retailer</small></span><input type="checkbox" checked={retailerIds.includes(retailer.id)} onChange={() => { setRetailerIds(ids => ids.includes(retailer.id) ? ids.filter(id => id !== retailer.id) : [...ids, retailer.id]); invalidate("Store preferences changed. Compare your list again."); }} /></label>)}
             <label className="preference-field">Maximum store orders<select value={maxRetailers} onChange={event => { setMaxRetailers(Number(event.target.value)); invalidate("Order limit changed. Compare your list again."); }}><option value={1}>1 store · keep it simple</option><option value={2}>Up to 2 stores</option><option value={3}>Up to 3 stores</option></select></label>
