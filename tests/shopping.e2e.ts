@@ -11,6 +11,7 @@ test("landing is keyboard accessible and fits the viewport", async ({ page }, in
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Skip to shopping list" })).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole("heading", { level: 1 }).click();
   await page.screenshot({ path: info.outputPath("landing.png"), fullPage: true, animations: "disabled" });
 });
 
@@ -46,7 +47,8 @@ test("example → matches → strategies → grouped cart → checkout and expor
   await page.getByRole("button", { name: "Close checkout preview", exact: true }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.locator("#comparison-results").screenshot({ path: info.outputPath("results.png") });
+  await page.getByRole("heading", { name: "Your list. A smarter total." }).click();
+  await page.locator("#comparison-results").screenshot({ path: info.outputPath("results.png"), animations: "disabled" });
   expect(errors).toEqual([]);
 });
 
@@ -126,4 +128,20 @@ test("failed comparisons preserve the list and allow retry", async ({ page }) =>
   await page.unroute("**/api/compare");
   await page.getByRole("button", { name: "Compare my list", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Good matches. No surprises." })).toBeVisible();
+});
+
+test("a narrow 320px screen and reduced motion support the full journey", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("button", { name: "Try a weekly essentials list" }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole("button", { name: "Compare my list", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Good matches. No surprises." })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole("button", { name: "Find my best basket" }).click();
+  await expect(page.getByTestId("basket-total")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole("button", { name: "Checkout preview", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect((await page.getByRole("dialog").boundingBox())!.width).toBeLessThanOrEqual(320);
 });
