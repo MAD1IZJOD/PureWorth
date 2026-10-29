@@ -1,4 +1,5 @@
-import { itemSchema, quantityLabel, type CanonicalUnit, type ItemMatches, type Location, type Match, type Product, type ShoppingItem } from "./domain";
+import { itemSchema, quantityLabel, type CanonicalUnit, type ItemMatches, type Match, type Product, type ShoppingItem } from "./domain";
+import { matchConfidence } from "./providers/contracts";
 
 const units: Record<string, { unit: CanonicalUnit; factor: number }> = {
   g: { unit: "g", factor: 1 }, gram: { unit: "g", factor: 1 }, grams: { unit: "g", factor: 1 },
@@ -75,7 +76,7 @@ export function parseShoppingList(text: string): ShoppingItem[] {
   });
 }
 
-export function matchProducts(items: ShoppingItem[], products: Product[], location: Location): ItemMatches[] {
+export function matchProducts(items: ShoppingItem[], products: Product[], location: string): ItemMatches[] {
   return items.map(item => {
     const matches: Match[] = [];
     const rejected: ItemMatches["rejected"] = [];
@@ -85,14 +86,14 @@ export function matchProducts(items: ShoppingItem[], products: Product[], locati
       if (!product.available) rejection = "Out of stock in this demo service area";
       else if (product.canonicalUnit !== item.unit) rejection = "Incompatible units";
       else if (totalQuantity % product.canonicalQuantity !== 0) rejection = "Package cannot fulfill the exact requested quantity";
-      if (rejection) { rejected.push({ productId: product.id, reason: rejection }); continue; }
+      if (rejection) { rejected.push({ productId: product.id, reason: rejection, confidence: "INCOMPATIBLE" }); continue; }
       const packs = totalQuantity / product.canonicalQuantity;
       const brandMatches = !item.brand || item.brand.toLowerCase() === product.brand.toLowerCase();
       const variantMatches = !item.variant || item.variant.toLowerCase() === product.variant.toLowerCase();
       const samePackage = item.quantity === product.canonicalQuantity;
       const classification = !brandMatches || !variantMatches ? "similar" : samePackage ? "exact" : "equivalent";
       const reason = classification === "similar" ? `Different ${!brandMatches ? "brand" : "variant"}: ${product.brand}, ${product.variant}. Approval required.` : classification === "equivalent" ? `Package change: ${packs} × ${quantityLabel(product.canonicalQuantity, product.canonicalUnit)} fulfills ${quantityLabel(totalQuantity, item.unit)}. Approval required.` : "Requested brand, variant and package size match";
-      matches.push({ id: `${item.id}:${product.id}`, itemId: item.id, product, packs, classification, reason, requiresApproval: classification !== "exact", lineTotal: product.price * packs });
+      matches.push({ id: `${item.id}:${product.id}`, itemId: item.id, product, packs, classification, confidence: matchConfidence(classification), reason, requiresApproval: classification !== "exact", lineTotal: product.price * packs });
     }
     const rank = { exact: 0, equivalent: 1, similar: 2 };
     matches.sort((a, b) => rank[a.classification] - rank[b.classification] || a.lineTotal - b.lineTotal || a.id.localeCompare(b.id));
