@@ -157,7 +157,7 @@ summary{cursor:pointer}
 .alternatives[open] .match-grid{margin-top:10px}
 .rejected-matches{color:#626d5a;font-size:10px;margin-top:10px}
 .rejected-matches ul{padding:10px;list-style:disc;margin-left:15px;overflow-wrap:anywhere}
-.inline-notice{background:#f4f0df;border:1px solid #e7dfbf;padding:12px 14px;border-radius:7px;font-size:11px;color:#84723f;margin-top:10px}
+.inline-notice{background:#f4f0df;border:1px solid #e7dfbf;padding:12px 14px;border-radius:7px;font-size:11px;color:#715c29;margin-top:10px}
 .review-footer{margin:28px 26px 0;padding-top:22px;border-top:1px solid var(--line);display:flex;gap:15px;align-items:center;justify-content:space-between}
 .review-footer p{display:flex;gap:7px;align-items:center;color:#626d5a;font-size:11px}
 .green-text{color:var(--green)}
