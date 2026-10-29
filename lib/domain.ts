@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { MatchConfidence } from "./providers/contracts";
+import type { PricingDiagnostics } from "./providers/metadata";
 
 export const moneySchema = z.number().int().min(0).max(100_000_000);
 export const canonicalUnitSchema = z.enum(["g", "ml", "pieces", "packs"]);
@@ -45,16 +47,17 @@ export const productSchema = z.object({
   canonicalQuantity: z.number().int().positive(), canonicalUnit: canonicalUnitSchema,
   price: moneySchema,
   unitPrice: z.object({ paise: moneySchema, perQuantity: z.number().int().positive(), unit: canonicalUnitSchema }),
-  available: z.boolean(), location: locationSchema,
-  updatedAt: z.iso.datetime(), source: z.literal("fictional-demo-fixture"),
+  available: z.boolean(), location: z.string().min(1).max(300),
+  updatedAt: z.iso.datetime(), source: z.enum(["fictional-demo-fixture", "normalized-authorized-provider"]),
 }).strict();
 export type Product = z.infer<typeof productSchema>;
 export type Match = {
   id: string; itemId: string; product: Product; packs: number;
   classification: "exact" | "equivalent" | "similar";
+  confidence?: MatchConfidence;
   reason: string; requiresApproval: boolean; lineTotal: number;
 };
-export type ItemMatches = { item: ShoppingItem; matches: Match[]; rejected: { productId: string; reason: string }[] };
+export type ItemMatches = { item: ShoppingItem; matches: Match[]; rejected: { productId: string; reason: string; confidence?: MatchConfidence }[] };
 export type Charge = { label: string; amount: number };
 export type StoreOrder = {
   retailer: Retailer; lines: Match[]; subtotal: number;
@@ -76,9 +79,11 @@ export const comparisonSchema = z.object({
   retailerIds: z.array(z.enum(["freshlane", "daily", "pantry"])).min(1).max(3),
   maxRetailers: z.number().int().min(1).max(3),
   fewerDeliveryTolerance: moneySchema.max(10_000).default(2000),
+  pin: z.string().regex(/^[1-9]\d{5}$/, "Enter a six-digit Indian PIN code beginning with 1–9").optional(),
+  simulation: z.enum(["normal", "stale", "expired", "timeout", "partial", "missing-fees"]).optional(),
 }).strict();
 export type ComparisonInput = z.infer<typeof comparisonSchema>;
-export type ComparisonResponse = { matches: ItemMatches[]; result: OptimizationResult; retailers: Retailer[] };
+export type ComparisonResponse = { matches: ItemMatches[]; result: OptimizationResult; retailers: Retailer[]; pricing?: PricingDiagnostics };
 
 /** Paise are integers everywhere. Division here is presentation only. */
 export function rupees(paise: number): string {
