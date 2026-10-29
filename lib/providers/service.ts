@@ -112,7 +112,7 @@ export async function compareDemo(raw: ComparisonInput): Promise<ComparisonRespo
   const input = comparisonSchema.parse(raw);
   const delivery = demoLocation(input.location, input.pin);
   const bindings = retailers.map(retailer => {
-    const simulation = ["timeout", "partial", "missing-fees"].includes(input.simulation ?? "normal") && retailer.id !== "daily" ? "normal" : input.simulation ?? "normal";
+    const simulation = ["timeout", "partial"].includes(input.simulation ?? "normal") && retailer.id !== "daily" ? "normal" : input.simulation ?? "normal";
     return { retailer, sourceType: "SIMULATED_AUTHORIZED" as const, policies: { LOCATION_PRICE: demoFreshnessPolicy }, provider: new ReferenceProvider(retailer.id, executors.get(retailer.id), simulatedTransport(retailer.id, simulation)) };
   });
   return compareProviders({ ...input, delivery }, bindings);
