@@ -9,7 +9,15 @@ const fail = (error: string, status: number) => Response.json({ error }, { statu
 
 export async function POST(request: Request): Promise<Response> {
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) return fail("Cross-origin requests are unavailable", 403);
+  // Next.js may construct an internal localhost URL behind a proxy. Compare
+  // against the incoming HTTP Host, never an untrusted forwarded-host value.
+  if (origin) {
+    try {
+      const source = new URL(origin);
+      const expectedHost = request.headers.get("host") ?? new URL(request.url).host;
+      if (!["http:", "https:"].includes(source.protocol) || source.host !== expectedHost) return fail("Cross-origin requests are unavailable", 403);
+    } catch { return fail("Invalid request origin", 403); }
+  }
   if (!request.headers.get("content-type")?.includes("application/json")) return fail("Send an application/json request", 415);
   const reader = request.body?.getReader();
   if (!reader) return fail("A shopping list is required", 400);
