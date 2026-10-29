@@ -20,6 +20,7 @@ export function MatchingReview({ matches, retailers, approved, onApproval, onOpt
     return <div key={match.id} className={`match-card ${approved.includes(match.id) ? "approved" : ""}`}>
       <div className="match-store"><span className={`store-dot ${retailer.color}`} />{retailer.name}<strong>{rupees(match.lineTotal)}</strong></div>
       <h4>{p.name}</h4><p>{match.packs} × {quantityLabel(p.canonicalQuantity, p.canonicalUnit)}{p.packageCount > 1 ? ` (${p.packageCount} inner packs)` : ""} · {unitPrice(match)}</p>
+      {match.requiresApproval && <small className="confidence-label">{match.confidence === "STRONG_EQUIVALENT" ? "Strong equivalent · package change" : "Possible alternative · product differs"}</small>}
       {match.requiresApproval ? <><p className="match-reason">{match.reason}</p><label className="approval"><input type="checkbox" checked={approved.includes(match.id)} disabled={busy} onChange={() => onApproval(match.id)} />{approved.includes(match.id) ? "Approved for this comparison" : "Allow this alternative"}</label></> : <span className="exact-label"><Check size={13} /> Exact match</span>}
     </div>;
   }
