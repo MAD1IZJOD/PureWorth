@@ -1,4 +1,4 @@
-import { capabilityNames, capabilityFailure, failure, type BasketQuote, type Capabilities, type Capability, type CatalogPage, type CommerceProvider, type DeliveryContext, type IntegrationStatus, type Offer, type ProviderHealth, type ProviderResult, type QuoteRequest, type Serviceability, type SourceType } from "./contracts";
+import { capabilityNames, capabilityFailure, failure, type BasketQuote, type Capabilities, type Capability, type CatalogPage, type CommerceProvider, type IntegrationStatus, type Offer, type ProviderHealth, type ProviderResult, type Serviceability, type SourceType } from "./contracts";
 
 export type ProviderDefinition = {
   id: string; name: string; integrationStatus: IntegrationStatus; sourceType: SourceType;
@@ -43,9 +43,9 @@ export class DisabledProvider implements CommerceProvider {
   getCapabilities(): Capabilities { return realCapabilities(this.id); }
   async getProviderHealth(): Promise<ProviderHealth> { return { status: "DISABLED", checkedAt: new Date().toISOString(), code: "APPROVAL_REQUIRED" }; }
   private blocked<T>(capability: keyof Capabilities): ProviderResult<T> { return capabilityFailure(this.getCapabilities()[capability]) ?? failure("UNSUPPORTED"); }
-  async searchProducts(_query: string, _location: DeliveryContext): Promise<ProviderResult<CatalogPage>> { return this.blocked("catalogSearch"); }
-  async getProductDetails(_id: string, _location: DeliveryContext): Promise<ProviderResult<Offer>> { return this.blocked("productDetails"); }
-  async getLocationAvailability(_location: DeliveryContext): Promise<ProviderResult<Serviceability>> { return this.blocked("locationAvailability"); }
-  async getCatalogOffers(_location: DeliveryContext): Promise<ProviderResult<CatalogPage>> { return this.blocked("catalogSearch"); }
-  async getBasketQuote(_request: QuoteRequest): Promise<ProviderResult<BasketQuote>> { return this.blocked("basketQuote"); }
+  async searchProducts(): Promise<ProviderResult<CatalogPage>> { return this.blocked("catalogSearch"); }
+  async getProductDetails(): Promise<ProviderResult<Offer>> { return this.blocked("productDetails"); }
+  async getLocationAvailability(): Promise<ProviderResult<Serviceability>> { return this.blocked("locationAvailability"); }
+  async getCatalogOffers(): Promise<ProviderResult<CatalogPage>> { return this.blocked("catalogSearch"); }
+  async getBasketQuote(): Promise<ProviderResult<BasketQuote>> { return this.blocked("basketQuote"); }
 }
