@@ -51,7 +51,7 @@ export function PureWorthApp() {
 
   async function compare(nextStage: "review" | "results", refresh = false) {
     setError("");
-    const input = comparisonSchema.safeParse({ items, location, ...(pin.trim() ? { pin: pin.trim() } : {}), simulation: refresh ? "normal" : simulation, retailerIds, maxRetailers, approved, fewerDeliveryTolerance: tolerance });
+    const input = comparisonSchema.safeParse({ items, location, ...(pin.trim() ? { pin: pin.trim() } : {}), simulation: refresh ? "normal" : simulation, refresh, retailerIds, maxRetailers, approved, fewerDeliveryTolerance: tolerance });
     if (!input.success) { setError(!retailerIds.length ? "Choose at least one demo store before comparing." : input.error.issues[0]?.message ?? "Review your list and store preferences"); goTo("shopping-error", true); return; }
     setBusy(true); setNotice(nextStage === "review" ? "Checking package sizes and demo availability…" : "Calculating complete baskets, including all order fees…");
     if (refresh) setSimulation("normal");
