@@ -27,10 +27,10 @@ export const retailers: Retailer[] = [
 type Seed = { sku: string; name: string; brand: string; category: string; variant: string; quantity: number; unit: Product["packageUnit"]; prices: [number, number, number]; packageCount?: number };
 const seeds: Seed[] = [
   { sku: "milk", name: "Amul Taaza toned milk", brand: "Amul", category: "milk", variant: "toned", quantity: 1, unit: "L", prices: [6900, 6600, 7200] },
-  { sku: "rice", name: "India Gate basmati rice", brand: "India Gate", category: "rice", variant: "basmati", quantity: 5, unit: "kg", prices: [54500, 57900, 51900] },
-  { sku: "dal", name: "Tata Sampann toor dal", brand: "Tata Sampann", category: "dal", variant: "toor", quantity: 1, unit: "kg", prices: [16900, 15500, 17900] },
+  { sku: "rice", name: "India Gate basmati rice", brand: "India Gate", category: "rice", variant: "basmati", quantity: 5, unit: "kg", prices: [58900, 57900, 51900] },
+  { sku: "dal", name: "Tata Sampann toor dal", brand: "Tata Sampann", category: "dal", variant: "toor", quantity: 1, unit: "kg", prices: [13900, 15500, 21900] },
   { sku: "oil", name: "Fortune sunflower oil", brand: "Fortune", category: "oil", variant: "sunflower", quantity: 1, unit: "L", prices: [15500, 16900, 14900] },
-  { sku: "eggs", name: "Farm Day white eggs", brand: "Farm Day", category: "eggs", variant: "regular", quantity: 6, unit: "pieces", packageCount: 2, prices: [9600, 10900, 9900] },
+  { sku: "eggs", name: "Farm Day white eggs", brand: "Farm Day", category: "eggs", variant: "regular", quantity: 6, unit: "pieces", packageCount: 2, prices: [9600, 10900, 12900] },
   { sku: "atta", name: "Aashirvaad whole wheat atta", brand: "Aashirvaad", category: "atta", variant: "whole wheat", quantity: 5, unit: "kg", prices: [28900, 27500, 26900] },
   { sku: "sugar", name: "Madhur refined sugar", brand: "Madhur", category: "sugar", variant: "refined", quantity: 1, unit: "kg", prices: [5200, 4900, 5500] },
   { sku: "tea", name: "Tata Tea premium tea", brand: "Tata Tea", category: "tea", variant: "premium", quantity: 250, unit: "g", prices: [14900, 15900, 13900] },
