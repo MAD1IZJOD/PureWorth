@@ -11,7 +11,7 @@ const units: Record<string, { unit: CanonicalUnit; factor: number }> = {
 /** Convert decimal quantity text without floating point or silent rounding. */
 export function normalizeQuantity(value: string, unit: string): { quantity: number; unit: CanonicalUnit } {
   const definition = units[unit.toLowerCase()];
-  if (!definition || !/^\d+(?:\.\d{1,3})?$/.test(value)) throw new Error("Use a positive quantity with up to three decimal places");
+  if (!definition || !/^(?:\d+(?:\.\d{1,3})?|\.\d{1,3})$/.test(value)) throw new Error("Use a positive quantity with up to three decimal places");
   const [whole, fraction = ""] = value.split(".");
   const scale = 10n ** BigInt(fraction.length);
   const numerator = (BigInt(whole) * scale + BigInt(fraction || "0")) * BigInt(definition.factor);
@@ -45,7 +45,7 @@ export function parseShoppingList(text: string): ShoppingItem[] {
     const multiplier = clean.match(/^(\d+)\s*[x×]\s*/i);
     const count = multiplier ? Number(multiplier[1]) : 1;
     if (multiplier) clean = clean.slice(multiplier[0].length);
-    const amount = clean.match(/(\d+(?:\.\d+)?)\s*(kilograms?|kgs?|grams?|g|millilitres?|ml|litres?|liters?|l|pieces?|pcs|packs?)\b/i);
+    const amount = clean.match(/(\d+(?:\.\d+)?|\.\d+)\s*(kilograms?|kgs?|grams?|g|millilitres?|ml|litres?|liters?|l|pieces?|pcs|packs?)\b/i);
     const definition = categories.find(c => c.pattern.test(clean));
     let normalized: { quantity: number; unit: CanonicalUnit } = { quantity: definition?.quantity ?? 1, unit: definition?.unit ?? "pieces" };
     if (amount) {
@@ -59,12 +59,18 @@ export function parseShoppingList(text: string): ShoppingItem[] {
         normalized = normalizeQuantity(bare[0], "pieces"); clean = clean.replace(bare[0], "").trim();
       }
     }
-    const brand = brands.find(b => clean.toLowerCase().includes(b.toLowerCase())) ?? null;
-    const variant = /full cream/i.test(clean) ? "full cream" : /brown/i.test(clean) ? "brown" : /organic/i.test(clean) ? "organic" : /mustard/i.test(clean) ? "mustard" : /moong/i.test(clean) ? "moong" : definition?.variant ?? "";
+    if (/[\d/.]/.test(clean)) throw new Error(`Use one quantity per item in “${fragment}”, for example 0.5 L or 2 x 1 L`);
+    const brand = brands.find(b => new RegExp(`\\b${b}\\b`, "i").test(clean)) ?? null;
+    const variant = definition?.category === "milk" && /\b(full cream|gold)\b/i.test(clean) ? "full cream" : definition?.category === "rice" && /\bbrown\b/i.test(clean) ? "brown" : /\borganic\b/i.test(clean) ? "organic" : definition?.category === "oil" && /\bmustard\b/i.test(clean) ? "mustard" : definition?.category === "dal" && /\bmoong\b/i.test(clean) ? "moong" : definition?.variant ?? "";
     // Unrecognized qualifiers remain a brand constraint instead of being silently ignored.
-    let residual = brand ? clean.replace(new RegExp(brand, "ig"), "") : clean;
+    let residual = brand ? clean.replace(new RegExp(`\\b${brand}\\b`, "ig"), "") : clean;
     residual = definition ? residual.replace(definition.pattern, "") : residual;
-    residual = residual.replace(/\b(basmati|toned|toor|sunflower|regular|whole wheat|refined|premium|plain|full cream|brown|organic|mustard|moong)\b/gi, "").trim();
+    if (variant) residual = residual.replace(new RegExp(`\\b${variant}\\b`, "ig"), "");
+    if (definition?.category === "milk" && brand === "Amul") residual = residual.replace(variant === "full cream" ? /\bgold\b/ig : /\btaaza\b/ig, "");
+    if (definition?.category === "eggs") residual = residual.replace(/\bwhite\b/ig, "");
+    if (definition?.category === "bananas") residual = residual.replace(/\byellow\b/ig, "");
+    residual = residual.trim();
+    if (brand && residual) throw new Error(`Unrecognized product details “${residual}”. Keep one supported product and variant per item; these details have not been substituted.`);
     return itemSchema.parse({ id: `item-${index}`, name: clean || fragment, category: definition?.category ?? "unknown", variant, brand: brand ?? (definition && residual ? residual : null), ...normalized, count });
   });
 }
