@@ -33,7 +33,7 @@ export function usePricingStatus(pricing?: PricingDiagnostics) {
 }
 
 export function PricingStatus({ location, pin, onPin, onPinEdit, simulation, onSimulation, pricing, busy, canRefresh, onRefresh }: {
-  location: Location; pin: string; onPin: (pin: string) => void; onPinEdit?: () => void;
+  location: Location; pin: string; onPin: (pin: string) => void; onPinEdit?: (value: string) => void;
   simulation: Simulation; onSimulation: (simulation: Simulation) => void;
   pricing?: PricingDiagnostics; busy: boolean; canRefresh: boolean; onRefresh: () => void;
 }) {
@@ -43,7 +43,7 @@ export function PricingStatus({ location, pin, onPin, onPinEdit, simulation, onS
   const providers = pricing?.providers ?? providerDefinitions.map(p => ({ id: p.id, name: p.name, enabled: p.featureEnabled, issue: p.featureEnabled ? "Simulated local fixtures" : "Not connected: authorization and credentials required", serviceability: null }));
   return <section className="panel pricing-panel" aria-label="Price data and coverage">
     <div className="pricing-heading"><div><span className="demo-chip">{pricing?.mode ?? "DEMO DATA"}</span><h3>Know what’s behind your price.</h3></div><ShieldCheck size={23} className="green-text" /></div>
-    <div className="pricing-context"><div className="pin-field"><label htmlFor="delivery-pin"><MapPin size={15} /> Delivery PIN <span>(optional)</span></label><input id="delivery-pin" inputMode="numeric" autoComplete="postal-code" maxLength={6} defaultValue={pin} onFocus={onPinEdit} onChange={onPinEdit} onBlur={e => onPin(e.currentTarget.value)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} disabled={busy} placeholder="e.g. 560001" aria-describedby="coverage-explanation" /><p id="coverage-explanation">{coverage}</p></div>
+    <div className="pricing-context"><div className="pin-field"><label htmlFor="delivery-pin"><MapPin size={15} /> Delivery PIN <span>(optional)</span></label><input id="delivery-pin" inputMode="numeric" autoComplete="postal-code" maxLength={6} defaultValue={pin} onFocus={() => onPinEdit?.(pin)} onChange={e => onPinEdit?.(e.currentTarget.value)} onBlur={e => onPin(e.currentTarget.value)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} disabled={busy} placeholder="e.g. 560001" aria-describedby="coverage-explanation" /><p id="coverage-explanation">{coverage}</p></div>
       <div className="freshness-summary"><span className="field-legend"><Clock3 size={15} /> Snapshot status</span><strong data-testid="freshness-status">{pricing ? status.freshness : "No comparison yet"}</strong><p>Price verification unavailable. Prices are fictional fixtures; freshness describes the simulated response only.</p>{pricing && <p className="quote-state">{!status.current ? "Refresh required before using a current basket estimate." : pricing.comparisonComplete ? "Complete basket estimate · illustrative 5-minute expiry." : "Incomplete comparison · savings withheld."}</p>}<button className="text-button" onClick={onRefresh} disabled={busy || !canRefresh}><RefreshCw size={15} />{busy ? "Refreshing…" : "Refresh prices"}</button></div>
     </div>
     {pricing && (!status.current || !pricing.comparisonComplete) && <div className="inline-notice" role="status">{status.expired ? "This basket estimate has expired. Refresh prices to recalculate." : !pricing.comparisonComplete ? "Some price, coverage or fee data is incomplete. No savings are claimed." : "These prices need a refresh."}</div>}
