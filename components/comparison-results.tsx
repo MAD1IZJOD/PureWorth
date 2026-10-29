@@ -1,16 +1,21 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, Download, Info, Leaf, ShieldCheck, ShoppingBag, Store, Truck, X } from "lucide-react";
 import { quantityLabel, rupees, type Basket, type OptimizationResult } from "../lib/domain";
 import { ProductArt } from "./product-art";
+import type { PricingDiagnostics } from "../lib/providers/metadata";
+import { usePricingStatus } from "./pricing-status";
 
 type Strategy = "cheapest" | "singleStore" | "fewerDeliveries";
 
-export function ComparisonResults({ result, onReview, tolerance }: { result: OptimizationResult; onReview: () => void; tolerance: number }) {
+export function ComparisonResults({ result, onReview, tolerance, pricing, busy = false, onRefresh }: { result: OptimizationResult; onReview: () => void; tolerance: number; pricing?: PricingDiagnostics; busy?: boolean; onRefresh?: () => void }) {
   const [strategy, setStrategy] = useState<Strategy>("cheapest");
   const dialog = useRef<HTMLDialogElement>(null);
   const basket = result[strategy] ?? result.cheapest;
+  const quoteState = usePricingStatus(pricing);
+  const current = pricing ? quoteState.current : true;
+  useEffect(() => { if (!current) dialog.current?.close(); }, [current]);
   const strategies: { id: Strategy; title: string; subtitle: string; icon: typeof Leaf }[] = [
     { id: "cheapest", title: result.status === "bounded" ? "Best basket found" : "Lowest total", subtitle: "Every eligible store. Every fee.", icon: Leaf },
     { id: "singleStore", title: result.status === "bounded" ? "Single store found" : "One-store shop", subtitle: "All your essentials, one order.", icon: Store },
@@ -22,10 +27,11 @@ export function ComparisonResults({ result, onReview, tolerance }: { result: Opt
     const link = document.createElement("a"); link.href = url; link.download = "pureworth-demo-shopping-plan.txt"; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  const saving = basket && result.reference ? result.reference.total - basket.total : null;
+  const saving = current && (!pricing || pricing.comparisonComplete) && basket && result.reference ? result.reference.total - basket.total : null;
   return <section id="comparison-results" aria-labelledby="results-title" className="results-section" tabIndex={-1}>
     <div className="section-heading"><div><span className="eyebrow">03 / THE NUMBERS ARE IN</span><h2 id="results-title">Your list. A smarter total.</h2></div><button className="text-button" onClick={onReview}>Review product matches <ArrowRight size={16} /></button></div>
     <div className={`result-notice ${result.status === "bounded" ? "warning" : ""}`}><Info size={18} /><p>{result.explanation}</p></div>
+    {!current && <div className="result-notice warning" role="status"><Info size={18} /><p>This is a previous or unavailable estimate. Refresh prices before previewing checkout or saving a current shopping plan.</p>{onRefresh && <button className="text-button" onClick={onRefresh} disabled={busy}>Refresh basket estimate</button>}</div>}
     {!basket ? <div className="panel empty-state"><ShoppingBag size={36} /><h3>{result.status === "bounded" ? "No complete basket found within the search limit" : "We can’t fulfill this complete list yet."}</h3><p>{result.unavailable.length ? `No eligible match for: ${result.unavailable.map(i => i.name).join(", ")}.` : "Try changing store preferences, quantities, or approved alternatives."}</p><button className="button primary" onClick={onReview}>Review matches</button></div> : <>
       <div className="strategy-grid" role="group" aria-label="Basket strategy">
         {strategies.map(({ id, title, subtitle, icon: Icon }) => {
@@ -45,9 +51,9 @@ export function ComparisonResults({ result, onReview, tolerance }: { result: Opt
         </article>)}
       </div><aside className="checkout-card">
         <span className="eyebrow">YOUR SMART CART</span><h3>Everything accounted for.</h3>
-        <dl><div><dt>Groceries</dt><dd>{rupees(basket.orders.reduce((n, o) => n + o.subtotal, 0))}</dd></div><div><dt>All order fees</dt><dd>{rupees(basket.orders.reduce((n, o) => n + o.charges.reduce((s, c) => s + c.amount, 0), 0))}</dd></div><div><dt>Confirmed demo offers</dt><dd>−{rupees(basket.orders.reduce((n, o) => n + o.discount, 0))}</dd></div><div className="grand-total"><dt>Total payable</dt><dd data-testid="basket-total">{rupees(basket.total)}</dd></div></dl>
-        {saving !== null && result.reference ? <div className="savings-note"><Leaf size={18} /><p>{saving > 0 ? <><strong>{rupees(saving)} lower</strong> than the reference basket.</> : saving === 0 ? "This strategy matches the reference total." : `${rupees(-saving)} above the reference total.`}<small>Reference: {result.reference.label}, {rupees(result.reference.total)}.</small></p></div> : <p className="small-text">No complete single-store reference is available. No savings are claimed.</p>}
-        <button className="button primary" onClick={() => dialog.current?.showModal()}>Checkout preview <ArrowRight size={17} /></button><button className="text-button export-button" onClick={() => download(basket)}><Download size={15} /> Save shopping plan</button><p className="checkout-disclaimer"><ShieldCheck size={14} /> Demo only. No payment or order placement.</p>
+        <dl><div><dt>Groceries</dt><dd>{rupees(basket.orders.reduce((n, o) => n + o.subtotal, 0))}</dd></div><div><dt>All order fees</dt><dd>{rupees(basket.orders.reduce((n, o) => n + o.charges.reduce((s, c) => s + c.amount, 0), 0))}</dd></div><div><dt>Confirmed demo offers</dt><dd>−{rupees(basket.orders.reduce((n, o) => n + o.discount, 0))}</dd></div><div className="grand-total"><dt>{current ? "Basket estimate" : "Previous estimate"}</dt><dd data-testid="basket-total">{rupees(basket.total)}</dd></div></dl>
+        {saving !== null && result.reference ? <div className="savings-note"><Leaf size={18} /><p><small>Estimated comparison · not guaranteed savings</small>{saving > 0 ? <><strong>{rupees(saving)} lower</strong> than the reference basket.</> : saving === 0 ? "This strategy matches the reference total." : `${rupees(-saving)} above the reference total.`}<small>Reference: {result.reference.label}, {rupees(result.reference.total)}.</small></p></div> : <p className="small-text">No current, complete comparable reference is available. No savings are claimed.</p>}
+        <button className="button primary" disabled={busy || !current} onClick={() => dialog.current?.showModal()}>Checkout preview <ArrowRight size={17} /></button><button className="text-button export-button" disabled={busy || !current} onClick={() => download(basket)}><Download size={15} /> Save shopping plan</button><p className="checkout-disclaimer"><ShieldCheck size={14} /> Demo only. No payment or order placement.</p>
       </aside></div>
       {!!basket.substitutions.length && <div className="result-notice"><Info size={18} /><p>{basket.substitutions.length} approved package or product alternatives are included and marked in your cart.</p></div>}
       <dialog ref={dialog} className="checkout-dialog" aria-labelledby="checkout-title" onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
