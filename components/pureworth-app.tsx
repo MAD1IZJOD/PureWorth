@@ -54,7 +54,7 @@ export function PureWorthApp() {
     const timeout = setTimeout(() => controller.abort(), 15_000);
     try {
       const result = await fetch("/api/compare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input.data), signal: controller.signal });
-      const data = await result.json();
+      const data = await result.json().catch(() => { throw new Error("Could not read the comparison response. Your list is still here; please try again."); });
       if (!result.ok) throw new Error(data.error ?? "Comparison failed. Please try again.");
       setResponse(data as ComparisonResponse); setStage(nextStage); setNotice(nextStage === "review" ? "Matches ready. Review exact matches and optional alternatives." : "Comparison ready. All order fees are included.");
       goTo(nextStage === "review" ? "match-review" : "comparison-results", true);
