@@ -39,12 +39,16 @@ test("PIN validation never assigns a nearby area and changes invalidate results"
   await page.getByRole("button", { name: "Compare my list", exact: true }).click();
   await expect(page.locator("#shopping-error")).toContainText("six-digit Indian PIN");
   await page.getByLabel("Delivery PIN").fill("999999");
+  await expect(page.getByLabel("Delivery PIN")).toHaveValue("999999");
+  const submitted = page.waitForRequest(request => request.url().endsWith("/api/compare") && request.method() === "POST");
   await page.getByRole("button", { name: "Compare my list", exact: true }).click();
+  expect((await submitted).postDataJSON().pin).toBe("999999");
   const unavailable = await optimize(page);
   expect(unavailable.result.cheapest).toBeNull(); expect(unavailable.result.savings).toBeNull();
   await expect(page.getByTestId("basket-total")).toHaveCount(0);
   await page.getByLabel("Demo service area").selectOption("pune");
   await page.getByLabel("Delivery PIN").fill("411001");
+  await page.getByLabel("Delivery PIN").press("Tab");
   await expect(page.getByTestId("freshness-status")).toHaveText("No comparison yet");
   await page.getByRole("button", { name: "Compare my list", exact: true }).click();
   const data = await optimize(page);
