@@ -86,7 +86,12 @@ export async function compareProviders(input: ProviderComparisonInput, bindings:
     }
     return { ...basket, orders, total: orders.reduce((sum, order) => sum + order.total, 0), substitutions: orders.flatMap(o => o.lines).filter(l => l.requiresApproval) };
   }
-  const cheapest = await reprice(result.cheapest), singleStore = await reprice(result.singleStore), fewerDeliveries = await reprice(result.fewerDeliveries);
+  const originalWinner = await reprice(result.cheapest), singleStore = await reprice(result.singleStore), originalFewer = await reprice(result.fewerDeliveries);
+  const candidates = [originalWinner, singleStore, originalFewer].filter((basket): basket is Basket => basket !== null)
+    .sort((a, b) => a.total - b.total || a.orders.length - b.orders.length || a.key.localeCompare(b.key));
+  const cheapest = candidates[0] ?? null;
+  const fewerDeliveries = cheapest ? candidates.filter(b => b.total <= cheapest.total + input.fewerDeliveryTolerance)
+    .sort((a, b) => a.orders.length - b.orders.length || a.total - b.total || a.key.localeCompare(b.key))[0] : null;
   if (quotes.some(q => Date.parse(q.expiresAt) <= now())) issues.push("A basket quote expired during repricing. Refresh to retry.");
   const current = offers.length > 0 && offers.every(o => isCurrent(assessFreshness(o, selected.find(b => b.provider.id === o.product.retailerId)?.policies[o.context], now()))) && quotes.every(q => Date.parse(q.expiresAt) > now());
   const complete = issues.length === 0;
