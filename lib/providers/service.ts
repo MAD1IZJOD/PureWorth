@@ -87,14 +87,15 @@ export async function compareProviders(input: ProviderComparisonInput, bindings:
     return { ...basket, orders, total: orders.reduce((sum, order) => sum + order.total, 0), substitutions: orders.flatMap(o => o.lines).filter(l => l.requiresApproval) };
   }
   const cheapest = await reprice(result.cheapest), singleStore = await reprice(result.singleStore), fewerDeliveries = await reprice(result.fewerDeliveries);
-  const current = offers.length > 0 && offers.every(o => isCurrent(offerDiagnostics[o.id].freshness));
+  if (quotes.some(q => Date.parse(q.expiresAt) <= now())) issues.push("A basket quote expired during repricing. Refresh to retry.");
+  const current = offers.length > 0 && offers.every(o => isCurrent(assessFreshness(o, selected.find(b => b.provider.id === o.product.retailerId)?.policies[o.context], now()))) && quotes.every(q => Date.parse(q.expiresAt) > now());
   const complete = issues.length === 0;
   const context = quotes.length > 0 && quotes.every(q => q.context === "CHECKOUT_QUOTE") ? "CHECKOUT_QUOTE" : "BASKET_ESTIMATE";
   const evidence = (basket: Basket): SavingsEvidence => ({ total: basket.total, complete, current, requestKey: requestFingerprint(input.items), locationKey: key, conditionsKey: conditions, productSignature: basketSignature(basket), sourceTypes: basket.orders.flatMap(o => o.lines.map(l => offers.find(offer => offer.id === l.product.id)!.sourceType)), context });
   const comparableStrategies = singleStore && [cheapest, fewerDeliveries].every(b => !b || comparableSavings(evidence(b), evidence(singleStore)) !== null);
   const savings = cheapest && comparableStrategies ? comparableSavings(evidence(cheapest), singleStore ? evidence(singleStore) : null) : null;
   // Different provider totals invalidate the model's final-price optimality claim.
-  result = { ...result, cheapest, singleStore, fewerDeliveries, reference: savings && singleStore ? { label: "Complete comparable single-store basket estimate", total: singleStore.total } : null, savings: savings?.amount ?? null,
+  result = { ...result, cheapest, singleStore, fewerDeliveries, reference: savings && singleStore ? { label: `${repricedChanged ? "Repriced single-store candidate" : result.reference?.label ?? "Complete comparable single-store basket"} · estimate`, total: singleStore.total } : null, savings: savings?.amount ?? null,
     status: repricedChanged || (!complete && cheapest) ? "bounded" : result.status,
     explanation: !complete ? `Incomplete comparison. ${issues.join(" ")} ${cheapest ? "Only a fully quoted basket from available data is shown; it is not a proven overall minimum." : "No complete current payable basket is shown."}` : repricedChanged ? "Provider repricing changed the model totals. These are repriced candidates only; the final-price optimum has not been proven." : result.explanation };
   const statuses = Object.values(offerDiagnostics).map(o => o.freshness.status);
