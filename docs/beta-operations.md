@@ -89,7 +89,7 @@ Records contain only random record ID, category, text and timestamp. No public r
 ## Health and readiness
 
 - `/api/health`: constant `alive`, process availability only; performs no provider or storage requests.
-- `/api/ready`: protected, no-store; `ready`/200 when required admission protection is available, `unavailable`/503 when it is not, or `busy`/429 for probe exhaustion. Local readiness makes no external calls. A configured optional service is not claimed healthy just because its flag is on.
+- `/api/ready`: protected, no-store; `ready`/200 when required admission protection is available, `unavailable`/503 when it is not, or `busy`/429 for probe exhaustion. Hosted checks exercise actual atomic admission and release a successful lease; a plain Redis ping cannot prove write permission. An exhausted but working shared limiter is healthy protection. Each successful hosted probe consumes one comparison token. Local readiness makes no external calls. A configured optional service is not claimed healthy just because its flag is on.
 - Provider state remains explicit in the normal comparison response: real connections disabled, fictional providers simulated. Readiness does not certify inventory, final checkout, feedback delivery or commercial access.
 
 Probe protection is process-local and bounded because readiness is behind access control. Use a moderate authenticated monitoring interval; do not expose it as an unprotected general-purpose Redis ping.
