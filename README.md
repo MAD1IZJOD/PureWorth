@@ -2,7 +2,9 @@
 
 **One shopping list. Every store. The lowest total price.**
 
-Latest: Phase 3 adds normalized provider contracts, location coverage, source freshness, permission-bounded caching and full-basket repricing. See the [provider architecture](docs/provider-architecture.md), [retailer access matrix](docs/retailer-integration-matrix.md) and [delivery report](docs/phase-3-delivery.md). The [previous stabilization audit](docs/audit-2026-10-29.md) records the verified 75-unit/API-test and 225-browser-test baseline.
+Latest: Phase 4 adds beta access gates, bounded APIs, a shared-store admission interface, sanitized operational logs, health/readiness, optional feedback and usage controls, failure recovery and three-engine browser coverage. **Local verification passed; hosted release remains blocked until dedicated Redis storage and actual Vercel protection are configured and verified.** No deployment was performed. See the [Phase 4 delivery report](docs/phase-4-delivery.md) and [controlled beta operations](docs/beta-operations.md).
+
+Phase 3's [provider architecture](docs/provider-architecture.md), [retailer access matrix](docs/retailer-integration-matrix.md) and [delivery report](docs/phase-3-delivery.md) describe the preserved pricing integration layer. Earlier results remain in the [stabilization audit](docs/audit-2026-10-29.md).
 
 A working grocery comparison MVP for India, built with Next.js App Router, strict TypeScript, React, Zod, Lucide and custom responsive CSS. It runs without paid APIs, a database, credentials or environment variables.
 
@@ -43,6 +45,9 @@ The server binds to loopback. Set a different port with `npm run dev -- --port 3
 - A provider availability disclosure and collapsible simulation controls for stale/expired prices, a provider timeout, partial catalog and missing order fees.
 - Grouped smart carts, explanations of free-delivery thresholds, downloadable text shopping plans and a clearly disabled checkout preview.
 - Loading, empty, invalid-input, missing-product and failed-request states; keyboard navigation, native dialog focus/escape behavior and reduced-motion support.
+- Hydration-safe shopping entry, cross-browser PIN editing, long-brand wrapping and recoverable download/render errors.
+- A beta feedback/privacy panel with honest unavailable states. Feedback requires configured private storage; optional page-only usage sharing defaults off and respects browser privacy signals.
+- Deployed access defaults to blocked. Hosted API admission requires configured shared Redis protection and fails closed on storage failure; loopback development uses local budgets without paid services.
 
 Try the weekly essentials example, select **Compare my list**, review matches, then select **Find my best basket**. The verified default example returns **₹1,039 across two stores**. The cheapest single-store basket is **₹1,055 at Freshlane**, a valid **₹16 estimated** reference saving. With the default ₹20 tolerance, the fewer-deliveries strategy selects that ₹1,055 single-store basket. These are fixture results, not real shopping quotes.
 
@@ -56,10 +61,11 @@ Try the weekly essentials example, select **Compare my list**, review matches, t
 | Matching | `lib/matching.ts` | Text parsing, exact unit normalization, package matching and approval requirements |
 | Optimization | `lib/optimizer.ts` | Deterministic allocation search and order-level fee evaluation |
 | API | `app/api/compare/route.ts` | Bounded JSON input, validation, trusted demo data and server-side computation |
+| Beta infrastructure | `lib/beta/`, `proxy.ts`, `app/api/` | Access, admission, private feedback, consented usage, sanitized logs and diagnostics |
 | Experience | `components/` | List editing, match review, preferences, results, cart and checkout preview |
 | Styling | `app/globals.css` | Self-contained responsive styles and reduced-motion behavior |
 
-The frontend submits requests and approved match IDs, not product prices or fee calculations. The server obtains those from the adapter. React escapes user text. The API rejects unknown fields and unsupported stores/locations, enforces unique item IDs, limits bodies to 32 KB and five seconds while reading, and disables response caching. A process-local budget limits requests and concurrency; provider calls have bounded timeouts/retries and rate limits. Browser security headers restrict framing and unused device/payment capabilities. No external LLM is involved.
+The frontend submits requests and approved match IDs, not product prices or fee calculations. The server obtains those from the adapter. React escapes user text. APIs enforce bounded streaming reads, nesting/origin/content-type checks, strict schemas and no-store responses. Comparison bodies are limited to 32 KB and five seconds while reading. Hosted admission uses atomic shared Redis rate/concurrency leases; missing or failed required protection returns 503. Local budgets and an additional comparison core guard protect simulated provider quotas. Browser policies restrict framing, external resources and eval. No external LLM is involved. See [limits and failure policy](docs/beta-operations.md#abuse-protection-and-failure-policy).
 
 Supabase is intentionally deferred: there is no account or durable shopping-history requirement in this MVP. Lists live in the current page's memory and reset on reload. Do not put secrets in source files; `.env*` files are ignored for future authorized integrations.
 
@@ -95,38 +101,40 @@ One line uses a single retailer SKU with an integer pack count. It cannot combin
 
 ## Verification
 
-Initial MVP results at `36db4aa`, executed locally on 29 October 2026 (the [subsequent audit](docs/audit-2026-10-29.md) records current results and coverage):
+Actual Phase 4 results on 31 October 2026 IST, tested application source `5371f611fe96fc4fedc89f528babface91d8d8c9` (later commits update documentation only):
 
 | Check | Actual result |
 | --- | --- |
 | `npm run typecheck` | Passed |
 | `npm run lint` | Passed |
-| `npm test` | 64 tests passed across 3 files |
-| `npm run build` | Passed; static landing page and dynamic comparison API generated |
-| `npm run test:e2e` | 27 tests passed on production server in about 1.1 minutes |
-| `npm audit --omit=dev` | 0 known vulnerabilities reported |
+| `npm test` | 230 unit/API tests passed across 10 files |
+| `npm run build` | Passed; server-rendered beta page, access proxy and five API routes |
+| Full Playwright suite | All 960 tests passed in 34.6 minutes; no failed, skipped or flaky tests |
+| `npm audit --json` | 0 known vulnerabilities, including development dependencies |
+| `npm run benchmark` | All local budgets passed; 1/10/25/50/100-user bursts, expected 429s, no incomplete successful baskets or unexpected errors |
+| `npm run check:release` | Passed locally; hosted preflight intentionally fails until required external configuration exists |
 
 Tests cover per-order fees, free-delivery boundaries, minimum orders, discounts, rounding, missing inventory, infeasible baskets, deterministic ties, store limits, quantity changes, package equivalence, approval, parser validation, the greedy adversarial case, and an independent exhaustive oracle across 40 fee scenarios. The actual 200,000-node limit is exercised.
 
-Playwright tests Chromium at desktop (1440 px), tablet (820 px) and emulated iPhone (390 px) sizes. They also run the complete journey at 320 px with reduced motion. Tests verify the real API, strategy switching, quantities/brands/removal, substitution rejection and approval, location/store restrictions, request failure and retry, exported plan content, dialog closing and disabled ordering. No horizontal overflow was observed at the tested sizes. These are browser emulations, not physical-device or Safari/Firefox verification.
+Playwright runs actual Chromium, Firefox and WebKit engines at desktop (1440 px), tablet (820 px), and 360/390/430 px mobile widths: 64 checks per engine/viewport, including 28 varied grocery scenarios. Each matrix also exercises a 320 px reduced-motion journey. Tests verify the real API, strategies, quantities/brands/removal, substitution approval, restrictions, request recovery, export content, focus, layout and disabled ordering. These are browser-engine tests on Windows, not physical-device or full Safari application certification.
 
-Automated axe scans use WCAG 2 A/AA, 2.1 AA and 2.2 AA tags on landing, match review, results and checkout at all three viewport sizes, with no reported violations in the final run. Finite entrance animations settle before scans. This is useful automated coverage, not a blanket accessibility certification.
+Automated axe scans use WCAG 2 A/AA, 2.1 AA and 2.2 AA tags on landing, match review, results and checkout throughout the matrix, with no reported violations in the final run. Beta disclosures are also scanned. Finite entrance animations settle before scans. This is useful automated coverage, not a blanket accessibility certification.
 
 To repeat browser checks:
 
 ```powershell
-npx playwright install chromium
-npm run build
-npm run test:e2e
+npx playwright install chromium firefox webkit
+npm run verify
+npm run check:release
 ```
 
-Playwright starts and stops a production server when port 3000 is free. If a server is already there, it reuses it locally; ensure it is this app's **latest production build**. Reports and screenshots are generated in ignored `playwright-report/` and `test-results/`. Open the HTML report with `npx playwright show-report`.
+Verification requires a clean unchanged checkout and runs tests, types, zero-warning lint, production build, all browsers, the dependency audit and benchmarks. Keep ports 3000 and 3100 free; Playwright can reuse an existing local 3000 server, which must be this app's **latest production build**. Reports/screenshots are ignored in `playwright-report/` and `test-results/`; release evidence is ignored in `.next/`. Open the HTML report with `npx playwright show-report`. The benchmark owns only a loopback server and never targets retailers or public infrastructure.
 
 ## Deployment and live integrations
 
-The app is Vercel-ready through standard Next.js detection: import this repository, use Node.js 24, `npm ci --ignore-scripts`, and `npm run build`. Keep the comparison route on the Node.js runtime. No Vercel deployment has been performed or claimed.
+`vercel.json` disables automatic Git deployments on every branch, preserving the mandatory immediate-push workflow. A repository policy does not prove external dashboard or webhook settings. Follow the [protected staging gates](docs/beta-operations.md#protected-staging-release-gates) before linking or uploading source. Keep APIs on the Node.js runtime and use Node 24. No Vercel deployment URL or verified external protection exists yet.
 
-Before unrestricted public production use, add deployment-level distributed rate limiting, operational monitoring, privacy/retention policies, broader browser/device checks and load tests. Local rate/concurrency limits are implemented but are not shared between server instances. Provider contract tests and quote/freshness handling now run locally; approved live access needs provider-specific policies and an authenticated server transport. Request aborts in the browser do not interrupt synchronous server enumeration.
+The user confirmed there is no dedicated Upstash database. Hosted access stays blocked until approved shared storage, private environment values and a protected Vercel project are configured, actual Redis scripts/outages are tested, and the HTTPS staging deployment passes smoke checks. Shared admission is implemented and contract-tested; cross-instance protection and real feedback persistence are unverified. Private log aggregation/alerts, retention operations and physical-device testing remain release work. Request aborts do not interrupt synchronous enumeration. A public production release requires separate explicit approval.
 
 See the [current official-source integration matrix](docs/retailer-integration-matrix.md) and [exact onboarding requirements](docs/provider-architecture.md#enabling-the-first-legitimate-provider). Earlier research remains in [the original integration notes](docs/integrations.md). Live checkout additionally needs fresh retailer quotes, explicit final consent, authorized ordering interfaces, idempotency, reconciliation, customer support and a compliant payment provider. Public product-search access alone does not establish order-placement rights.
 
