@@ -22,11 +22,12 @@ const proof = JSON.parse(readFileSync(".next/pureworth-verification.json", "utf8
 const since = git("diff", "--name-only", `${proof.commit}..HEAD`).split(/\r?\n/).filter(Boolean);
 check(since.every(path => path === "README.md" || /^docs\/.*\.md$/.test(path)), "tested source unchanged except documentation");
 check(proof.buildId === readFileSync(".next/BUILD_ID", "utf8").trim() && Date.now() - Date.parse(proof.verifiedAt) < 7 * 86400_000, "verification matches this build and is under seven days old");
-check(proof.units >= 227 && proof.browsers >= 930 && proof.typecheck && proof.lint && proof.build && proof.audit, "all current unit, browser, lint, type, build and audit gates passed");
-check(proof.benchmark.load.length === 5 && proof.benchmark.load.every(r => r.unexpectedErrorPercent === 0) && proof.benchmark.expensive.bounded === 10, "local load tests passed without incomplete baskets and retained search limits");
+check(proof.units >= 230 && proof.browsers >= 930 && proof.typecheck && proof.lint && proof.build && proof.audit, "all current unit, browser, lint, type, build and audit gates passed");
+check(proof.benchmark.budgetPass && proof.benchmark.load.length === 5 && proof.benchmark.load.every(r => r.unexpectedErrorPercent === 0) && proof.benchmark.expensive.bounded === 10, "local load and performance budgets passed without incomplete baskets and retained search limits");
 const signatures = /BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36}/;
-for (const file of git("ls-files").split(/\r?\n/)) {
-  check(!/^\.env(?!\.example$)/.test(file), `no private environment file tracked: ${file}`);
+const tracked = git("ls-files").split(/\r?\n/);
+check(tracked.every(file => !/^\.env(?!\.example$)/.test(file)), "no private environment files tracked");
+for (const file of tracked) {
   if (signatures.test(readFileSync(file, "utf8"))) throw new Error(`Review possible secret in ${file}; value withheld`);
 }
 const config = betaConfig();
