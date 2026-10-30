@@ -8,9 +8,12 @@
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "benchmark": "node scripts/benchmark.mjs",
+    "verify": "node scripts/verify.mjs",
+    "check:release": "node scripts/release-check.mjs"
   },
   "dependencies": {
     "next": "16.4.3",
