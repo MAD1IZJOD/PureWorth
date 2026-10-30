@@ -72,6 +72,19 @@ describe("bounded request parsing", () => {
 });
 
 describe("shared rate and concurrency protection", () => {
+  it("does not report ready when ping succeeds but admission writes fail", async () => {
+    const limiter = new SharedAdmission({ healthy: async () => true, command: async () => { throw new Error("write access denied"); } }, "preview");
+    expect(await limiter.healthy()).toBe(false);
+  });
+  it("verifies real admission and releases the readiness lease", async () => {
+    const command = vi.fn().mockResolvedValueOnce([1, 0, 11]).mockResolvedValueOnce(1);
+    const limiter = new SharedAdmission({ command, healthy: async () => true }, "preview");
+    expect(await limiter.healthy()).toBe(true); expect(command).toHaveBeenCalledTimes(2);
+  });
+  it("distinguishes working exhausted protection from a storage outage", async () => {
+    const limiter = new SharedAdmission({ command: async () => [0, 1, 0], healthy: async () => true }, "preview");
+    expect(await limiter.healthy()).toBe(true);
+  });
   it("releases leases once and survives release outages", async () => {
     const command = vi.fn().mockResolvedValueOnce([1, 0, 11]).mockRejectedValueOnce(new Error("private-test-value"));
     const limiter = new SharedAdmission({ command, healthy: async () => true }, "preview");
