@@ -18,7 +18,9 @@ async function run(args) {
 const unitOutput = await run([npmCli, "test"]);
 const units = Number(unitOutput.match(/Tests\s+(\d+) passed/)?.[1]);
 await run([npmCli, "run", "typecheck"]); await run([npmCli, "run", "lint"]); await run([npmCli, "run", "build"]);
-const browserOutput = await run(["node_modules/@playwright/test/cli.js", "test", "--workers=2"]);
+// Respect the configured single worker: parallel journeys can intentionally
+// exhaust the app's shared local safety budget. Load tests exercise bursts apart.
+const browserOutput = await run(["node_modules/@playwright/test/cli.js", "test"]);
 const browsers = Number(browserOutput.match(/(\d+) passed \(/)?.[1]);
 if (!units || !browsers || /\d+ (?:failed|skipped|flaky)/.test(browserOutput) || JSON.parse(readFileSync("test-results/.last-run.json", "utf8")).status !== "passed") throw new Error("All browser and unit checks must pass without skips or flaky tests");
 await run([npmCli, "audit", "--json"]);
