@@ -1,16 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { ArrowDown, ArrowRight, Check, CheckCheck, ChevronDown, CircleHelp, Leaf, ListChecks, LoaderCircle, MapPin, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles } from "lucide-react";
 import { comparisonSchema, type ComparisonResponse, type Location, type ShoppingItem } from "../lib/domain";
 import { retailers } from "../lib/catalog";
 import { exampleList, parseShoppingList } from "../lib/matching";
-import { ComparisonResults } from "./comparison-results";
 import { ListComposer } from "./list-composer";
 import { MatchingReview } from "./matching-review";
 import { ProductArt } from "./product-art";
 import { PricingStatus } from "./pricing-status";
 import type { Simulation } from "../lib/providers/contracts";
+import { BetaExperience } from "./beta-experience";
+import { trackUsage } from "../lib/beta/usage-client";
+
+const ComparisonResults = dynamic(() => import("./comparison-results").then(module => module.ComparisonResults), { loading: () => <p role="status">Preparing your basket breakdown…</p> });
 
 let navigationTimer: ReturnType<typeof setTimeout> | undefined;
 function cancelNavigation() { clearTimeout(navigationTimer); navigationTimer = undefined; }
@@ -24,7 +28,7 @@ function goTo(id: string, focus = false) {
   }, 50);
 }
 
-export function PureWorthApp() {
+export function PureWorthApp({ beta = { feedback: false, analytics: false } }: { beta?: { feedback: boolean; analytics: boolean } }) {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [draft, setDraft] = useState("");
   const [location, setLocation] = useState<Location>("bengaluru");
@@ -49,10 +53,10 @@ export function PureWorthApp() {
     try {
       const parsed = parseShoppingList(text).map(item => ({ ...item, id: crypto.randomUUID() }));
       if (parsed.length + items.length > 12) throw new Error("Compare up to 12 different items. Remove an item before adding more.");
-      changeItems([...items, ...parsed]); setNotice(`${parsed.length} ${parsed.length === 1 ? "item added" : "items added"}. Review quantities and brands below.`); goTo("shopping-list"); return true;
+      changeItems([...items, ...parsed]); trackUsage("list_submitted"); setNotice(`${parsed.length} ${parsed.length === 1 ? "item added" : "items added"}. Review quantities and brands below.`); goTo("shopping-list"); return true;
     } catch (e) { setError(e instanceof Error ? e.message : "Please review your grocery list"); goTo("shopping-error", true); return false; }
   }
-  function loadExample() { changeItems(parseShoppingList(exampleList)); setNotice("Example loaded. These are fictional demo prices and stores."); goTo("shopping-list"); }
+  function loadExample() { changeItems(parseShoppingList(exampleList)); trackUsage("list_submitted"); setNotice("Example loaded. These are fictional demo prices and stores."); goTo("shopping-list"); }
 
   async function compare(nextStage: "review" | "results", refresh = false) {
     setError("");
@@ -66,9 +70,10 @@ export function PureWorthApp() {
       const result = await fetch("/api/compare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input.data), signal: controller.signal });
       const data = await result.json().catch(() => { throw new Error("Could not read the comparison response. Your list is still here; please try again."); });
       if (!result.ok) throw new Error(data.error ?? "Comparison failed. Please try again.");
+      if (nextStage === "results") trackUsage("results_viewed");
       setResponse(data as ComparisonResponse); setStage(nextStage); setNotice(data.pricing && !data.pricing.comparisonComplete ? "Comparison is incomplete. Review provider status and refresh to retry; no savings are claimed." : nextStage === "review" ? "Matches ready. Review exact matches and optional alternatives." : "Comparison ready. All order fees are included in this demo estimate.");
       goTo(nextStage === "review" ? "match-review" : "comparison-results", true);
-    } catch (e) { setError(e instanceof Error && e.name === "AbortError" ? "Comparison timed out. Your list is saved on this page; please try again." : e instanceof Error ? e.message : "Could not compare your list. Please try again."); setNotice(""); goTo("shopping-error", true); }
+    } catch (e) { trackUsage("comparison_failed"); trackUsage("visible_error"); setError(e instanceof Error && e.name === "AbortError" ? "Comparison timed out. Your list is saved on this page; please try again." : e instanceof Error ? e.message : "Could not compare your list. Please try again."); setNotice(""); goTo("shopping-error", true); }
     finally { clearTimeout(timeout); setBusy(false); }
   }
 
@@ -101,6 +106,7 @@ export function PureWorthApp() {
         { number: "03", icon: ShoppingBag, title: "Find your best total", text: "Compare complete baskets with delivery and fees included, then choose the shop that suits you." },
       ].map(({ number, icon: Icon, title, text }) => <article key={number}><div><Icon size={25} strokeWidth={1.4} /><span>{number}</span></div><h3>{title}</h3><p>{text}</p></article>)}</div></section>
       <section id="data-and-trust" className="trust-section container" aria-labelledby="trust-title"><div><ShieldCheck size={29} strokeWidth={1.4} /><span className="eyebrow">CLEAR BY DESIGN</span><h2 id="trust-title">Trust begins with the details.</h2></div><div><p>Freshlane, Daily Basket and Pantry Club are fictional stores. All prices, offers and stock are authored demonstration fixtures dated 1 October 2026, not live quotes. Product illustrations are decorative.</p><p>The demo covers milk, rice, dal, oil, eggs, atta, sugar, tea, curd and bananas. It compares up to 12 list items and 3 stores. Larger searches have a visible limit and may return a best-found result.</p><details><summary>What about Blinkit, Zepto, Instamart and other retailers?</summary><p>These are future integration candidates, not connected providers. Authorized catalog access, location-specific fee quotes and separate ordering agreements are required before any live comparison or checkout. Amazon and Flipkart are also not connected. ONDC is a potential future route, without a promise of access to any particular retailer.</p></details></div></section>
+      <BetaExperience {...beta} />
     </main>
     <footer className="site-footer container"><a className="brand footer-brand" href="#top"><span className="brand-mark"><CheckCheck size={18} /></span>pureworth.</a><p>Spend thoughtfully. Live a little more.</p><span>Made for the everyday. In India.</span></footer>
   </div>;
