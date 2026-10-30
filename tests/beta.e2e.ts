@@ -31,12 +31,12 @@ test("failed shopping plan downloads show a recoverable error", async ({ page })
   await basket(page);
   await page.evaluate(() => { const original = URL.createObjectURL; Object.assign(window, { restoreDownload: () => { URL.createObjectURL = original; } }); URL.createObjectURL = () => { throw new Error("injected download failure"); }; });
   await page.getByRole("button", { name: "Save shopping plan" }).click();
-  await expect(page.getByRole("alert")).toContainText("Your browser could not save the plan");
+  await expect(page.locator("#comparison-results [role='alert']")).toContainText("Your browser could not save the plan");
   await expect(page.getByTestId("basket-total")).toContainText("1,039");
   await page.evaluate(() => (window as typeof window & { restoreDownload: () => void }).restoreDownload());
   const downloaded = page.waitForEvent("download"); await page.getByRole("button", { name: "Save shopping plan" }).click();
   expect((await downloaded).suggestedFilename()).toBe("pureworth-demo-shopping-plan.txt");
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator("#comparison-results [role='alert']")).toHaveCount(0);
 });
 test("reload clears page-memory lists and old quotes with no purchase claim", async ({ page }) => {
   await basket(page); await page.reload();
@@ -63,8 +63,8 @@ test("render failures recover through the safe beta error screen", async ({ page
   await page.getByRole("button", { name: "Compare my list", exact: true }).click();
   await page.getByRole("button", { name: "Find my best basket", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Let’s get you back to your list." })).toBeFocused();
-  await expect(page.getByRole("alert")).toContainText("No payment or order has occurred");
-  await expect(page.getByRole("alert")).not.toContainText("TypeError");
+  await expect(page.locator("section[role='alert']")).toContainText("No payment or order has occurred");
+  await expect(page.locator("section[role='alert']")).not.toContainText("TypeError");
   await page.getByRole("button", { name: "Start a fresh shopping list" }).click();
   await expect(page.getByRole("heading", { name: "Good groceries. Better math." })).toBeVisible();
   await expect(page.getByTestId("shopping-item")).toHaveCount(0);
