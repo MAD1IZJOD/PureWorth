@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { ArrowDown, ArrowRight, Check, CheckCheck, ChevronDown, CircleHelp, Leaf, ListChecks, LoaderCircle, MapPin, ShieldCheck, ShoppingBag, SlidersHorizontal, Sparkles } from "lucide-react";
 import { comparisonSchema, type ComparisonResponse, type Location, type ShoppingItem } from "../lib/domain";
@@ -30,7 +30,7 @@ function goTo(id: string, focus = false) {
 
 export function PureWorthApp({ beta = { feedback: false, analytics: false } }: { beta?: { feedback: boolean; analytics: boolean } }) {
   const [items, setItems] = useState<ShoppingItem[]>([]);
-  const [draft, setDraft] = useState("");
+  const draft = useRef<HTMLTextAreaElement>(null);
   const [location, setLocation] = useState<Location>("bengaluru");
   const [pin, setPin] = useState("");
   const [simulation, setSimulation] = useState<Simulation>("normal");
@@ -82,7 +82,7 @@ export function PureWorthApp({ beta = { feedback: false, analytics: false } }: {
     <header className="site-header"><div className="container header-inner"><a className="brand" href="#top" aria-label="PureWorth home"><span className="brand-mark"><CheckCheck size={22} strokeWidth={2.3} /></span>pureworth<span className="brand-period">.</span></a><nav aria-label="Main navigation"><a href="#how-it-works">How it works</a><a href="#shopping-list" className="nav-list"><ShoppingBag size={16} />Your list{items.length > 0 && <span>{items.length}</span>}</a></nav><span className="header-demo"><span /> DEMO EXPERIENCE</span></div></header>
     <main>
       <section className="hero container" aria-labelledby="hero-title"><div className="hero-copy"><span className="eyebrow hero-eyebrow"><span className="tiny-line" /> A LITTLE INTELLIGENCE. A LOT MORE WORTH.</span><h1 id="hero-title">Good groceries.<br /><em>Better math.</em></h1><p className="hero-description">One shopping list. Every store. The lowest total price.<br className="desktop-break" /> We do the basket math, so your money goes further.</p>
-        <form className="hero-input" onSubmit={event => { event.preventDefault(); if (addItems(draft)) setDraft(""); }}><label htmlFor="shopping-input"><ListChecks size={18} />What’s on your list?</label><textarea id="shopping-input" value={draft} onChange={event => setDraft(event.target.value)} maxLength={2000} disabled={busy} rows={2} placeholder="2 litres milk, 5 kg rice, 1 kg dal, 12 eggs…" required /><div><span>Type it naturally. We’ll sort the details.</span><button className="button primary" disabled={busy} type="submit">Build my list <ArrowRight size={17} /></button></div></form>
+        <form className="hero-input" onSubmit={event => { event.preventDefault(); if (addItems(draft.current?.value ?? "")) event.currentTarget.reset(); }}><label htmlFor="shopping-input"><ListChecks size={18} />What’s on your list?</label><textarea id="shopping-input" ref={draft} defaultValue="" maxLength={2000} disabled={busy} rows={2} placeholder="2 litres milk, 5 kg rice, 1 kg dal, 12 eggs…" required /><div><span>Type it naturally. We’ll sort the details.</span><button className="button primary" disabled={busy} type="submit">Build my list <ArrowRight size={17} /></button></div></form>
         <p className="try-example">Just looking around? <button onClick={loadExample} disabled={busy}>Try a weekly essentials list <ArrowRight size={14} /></button></p><div className="hero-trust"><span><Check size={15} /> No sign-up needed</span><span><ShieldCheck size={15} /> Every fee included</span></div>
       </div><div className="hero-visual"><div className="art-backdrop" /><span className="visual-label"><Leaf size={14} /> SHOP WELL. SPEND WISELY.</span><ProductArt category="pantry" hero /><div className="math-note"><span className="note-icon"><Sparkles size={20} /></span><div><strong>The whole basket matters.</strong><p>Item prices + store fees − eligible offers.<br />That’s where the real comparison starts.</p></div></div><span className="art-caption">A better kind of grocery run.</span></div></section>
       <div className="demo-strip"><div className="container"><InfoBadge /><p><strong>A real optimizer. Demonstration data.</strong> Explore three fictional stores. No live retailer prices, payments or orders.</p><a href="#data-and-trust">About the data <ArrowRight size={14} /></a></div></div>
