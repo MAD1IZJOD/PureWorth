@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { MemoryPriceCache, cacheKey, demoCachePermission, noCache, type CacheDimensions } from "./cache";
-import { capabilityFailure, deliveryContextSchema, failure, matchConfidence } from "./contracts";
+import { capabilityFailure, deliveryContextSchema, failure, matchConfidence, type ProviderResult } from "./contracts";
 import { assessFreshness, dataMode, demoFreshnessPolicy, isCurrent } from "./freshness";
 import { demoLocation, demoServiceability, locationKey } from "./location";
 import { DisabledProvider, authorizationGate, providerDefinitions } from "./registry";
@@ -103,6 +103,33 @@ describe("permission-bounded cache", () => {
 });
 
 describe("reliable and safe provider access", () => {
+  it.each([
+    ["null envelope", null],
+    ["undefined envelope", undefined],
+    ["missing discriminator", {}],
+    ["missing failure details", { ok: false }],
+    ["unrecognized error code", { ok: false, error: { code: "UPSTREAM secret-test-token", message: "private diagnostic", retryable: false } }],
+    ["nonboolean discriminator", { ok: "false", value: 42 }],
+    ["negative retry delay", { ok: false, error: { code: "RATE_LIMITED", message: "private diagnostic", retryable: true, retryAfterMs: -1 } }],
+    ["nonfinite retry delay", { ok: false, error: { code: "RATE_LIMITED", message: "private diagnostic", retryable: true, retryAfterMs: Infinity } }],
+    ["nonboolean retry flag", { ok: false, error: { code: "TIMEOUT", message: "private diagnostic", retryable: "yes" } }],
+  ])("rejects malformed %s without throwing, leaking or retrying", async (_label, raw) => {
+    const logs: unknown[] = [], delays: number[] = [];
+    let attempts = 0;
+    const executor = new ProviderExecutor("demo", simulationAccessPolicy, () => now, async ms => { delays.push(ms); }, event => logs.push(event));
+    await expect(executor.run("catalog", async () => { attempts++; return raw as ProviderResult<unknown>; }, z.number())).resolves.toEqual(failure("INVALID_RESPONSE"));
+    expect(attempts).toBe(1); expect(delays).toEqual([]);
+    expect(logs).toEqual([{ provider: "demo", operation: "catalog", code: "INVALID_RESPONSE", attempt: 1 }]);
+    expect(JSON.stringify(logs)).not.toContain("secret-test-token");
+    expect(await executor.run("catalog", async () => ({ ok: true, value: 42 }), z.number())).toEqual({ ok: true, value: 42 });
+  });
+  it("sanitizes a valid failure envelope without retaining upstream diagnostic text", async () => {
+    const logs: unknown[] = [];
+    const executor = new ProviderExecutor("demo", simulationAccessPolicy, () => now, undefined, event => logs.push(event));
+    const result = await executor.run("catalog", async () => ({ ok: false, error: { code: "AUTHENTICATION", message: "Authorization: secret-test-token", retryable: false } }), z.number());
+    expect(result).toEqual(failure("AUTHENTICATION"));
+    expect(JSON.stringify([result, logs])).not.toContain("secret-test-token");
+  });
   it("validates upstream responses and redacts exceptions", async () => {
     const logs: unknown[] = [];
     const executor = new ProviderExecutor("demo", { ...simulationAccessPolicy, retries: 0 }, () => now, undefined, event => logs.push(event));
