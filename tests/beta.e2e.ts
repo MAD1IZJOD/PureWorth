@@ -9,20 +9,23 @@ async function basket(page: Page) {
   await expect(page.getByTestId("basket-total")).toBeVisible();
 }
 
-test("shopping text entered before hydration survives the first submission", async ({ page }) => {
+for (const control of [
+  { field: "What’s on your list?", button: "Build my list" },
+  { field: "Add a grocery item", button: "Add grocery item" },
+]) test(`${control.button} preserves text entered before hydration`, async ({ page }) => {
   let releaseScripts!: () => void;
   const scriptsReady = new Promise<void>(resolve => { releaseScripts = resolve; });
   await page.route("**/_next/static/**/*.js", async route => { await scriptsReady; await route.continue(); });
   await page.goto("/", { waitUntil: "commit" });
   try {
-    await page.getByLabel("What’s on your list?").fill("India Gate rice 0.5 kg");
-    await expect(page.getByLabel("What’s on your list?")).toHaveValue("India Gate rice 0.5 kg");
+    await page.getByLabel(control.field, { exact: true }).fill("India Gate rice 0.5 kg");
+    await expect(page.getByLabel(control.field, { exact: true })).toHaveValue("India Gate rice 0.5 kg");
   } finally { releaseScripts(); }
   await page.waitForLoadState("networkidle");
-  await page.getByRole("button", { name: "Build my list", exact: true }).click();
+  await page.getByRole("button", { name: control.button, exact: true }).click();
   await expect(page.getByTestId("shopping-item")).toHaveCount(1);
   await expect(page.getByTestId("shopping-item")).toContainText("500 g");
-  await expect(page.getByLabel("What’s on your list?")).toHaveValue("");
+  await expect(page.getByLabel(control.field, { exact: true })).toHaveValue("");
 });
 
 test("beta feedback and privacy have accessible honest unavailable states", async ({ page }, info) => {
