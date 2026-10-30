@@ -117,7 +117,7 @@ ul{margin:0;padding:0;list-style:none}
 .product-thumb svg{width:100%;height:100%}
 .item-info{min-width:0;flex:1}
 .item-info h3{font-size:12px;overflow-wrap:anywhere}
-.item-info>p{font-size:10px;color:#626d5a;margin-top:3px}
+.item-info>p{font-size:10px;color:#626d5a;margin-top:3px;overflow-wrap:anywhere;min-width:0}
 .item-edit{font-size:10px;margin-top:3px;color:#626d5a}
 summary{cursor:pointer}
 .item-edit summary:hover{color:var(--green)}
@@ -163,7 +163,7 @@ summary{cursor:pointer}
 .review-panel{margin-top:34px;padding-bottom:26px}
 .section-intro{padding:0 26px;font-size:12px;line-height:1.8;color:var(--muted);max-width:900px}
 .match-group{margin:24px 26px 0;padding-top:23px;border-top:1px solid var(--line)}
-.match-group>h3{font-size:14px;display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between;align-items:center}
+.match-group>h3{font-size:14px;display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between;align-items:center;overflow-wrap:anywhere;min-width:0}
 .match-group>h3>span{font-size:11px;color:var(--muted);font-weight:400}
 .match-section-label{font-size:10px;color:#58684e;margin:12px 0 8px}
 .match-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
