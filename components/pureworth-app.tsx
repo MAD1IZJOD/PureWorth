@@ -33,6 +33,7 @@ export function PureWorthApp({ beta = { feedback: false, analytics: false } }: {
   const draft = useRef<HTMLTextAreaElement>(null);
   const [location, setLocation] = useState<Location>("bengaluru");
   const [pin, setPin] = useState("");
+  const pinDraft = useRef("");
   const [simulation, setSimulation] = useState<Simulation>("normal");
   const [retailerIds, setRetailerIds] = useState(["freshlane", "daily", "pantry"]);
   const [maxRetailers, setMaxRetailers] = useState(3);
@@ -60,7 +61,8 @@ export function PureWorthApp({ beta = { feedback: false, analytics: false } }: {
 
   async function compare(nextStage: "review" | "results", refresh = false) {
     setError("");
-    const input = comparisonSchema.safeParse({ items, location, ...(pin.trim() ? { pin: pin.trim() } : {}), simulation: refresh ? "normal" : simulation, refresh, retailerIds, maxRetailers, approved, fewerDeliveryTolerance: tolerance });
+    const currentPin = pinDraft.current.trim();
+    const input = comparisonSchema.safeParse({ items, location, ...(currentPin ? { pin: currentPin } : {}), simulation: refresh ? "normal" : simulation, refresh, retailerIds, maxRetailers, approved, fewerDeliveryTolerance: tolerance });
     if (!input.success) { setError(!retailerIds.length ? "Choose at least one demo store before comparing." : input.error.issues[0]?.message ?? "Review your list and store preferences"); goTo("shopping-error", true); return; }
     setBusy(true); setNotice(nextStage === "review" ? "Checking package sizes and demo availability…" : "Calculating complete baskets, including all order fees…");
     if (refresh) setSimulation("normal");
@@ -78,7 +80,7 @@ export function PureWorthApp({ beta = { feedback: false, analytics: false } }: {
   }
 
   return <div id="top">
-    <a href="#shopping-list" className="skip-link">Skip to shopping list</a>
+    <a href="#shopping-list" className="skip-link" tabIndex={0}>Skip to shopping list</a>
     <header className="site-header"><div className="container header-inner"><a className="brand" href="#top" aria-label="PureWorth home"><span className="brand-mark"><CheckCheck size={22} strokeWidth={2.3} /></span>pureworth<span className="brand-period">.</span></a><nav aria-label="Main navigation"><a href="#how-it-works">How it works</a><a href="#shopping-list" className="nav-list"><ShoppingBag size={16} />Your list{items.length > 0 && <span>{items.length}</span>}</a></nav><span className="header-demo"><span /> DEMO EXPERIENCE</span></div></header>
     <main>
       <section className="hero container" aria-labelledby="hero-title"><div className="hero-copy"><span className="eyebrow hero-eyebrow"><span className="tiny-line" /> A LITTLE INTELLIGENCE. A LOT MORE WORTH.</span><h1 id="hero-title">Good groceries.<br /><em>Better math.</em></h1><p className="hero-description">One shopping list. Every store. The lowest total price.<br className="desktop-break" /> We do the basket math, so your money goes further.</p>
@@ -89,7 +91,7 @@ export function PureWorthApp({ beta = { feedback: false, analytics: false } }: {
 
       <section className="workspace-section container" aria-label="Build and compare your basket"><div className="workspace-top"><div><span className="eyebrow">LET’S MAKE YOUR NEXT SHOP COUNT</span><h2>A little planning. More in your pocket.</h2></div><label className="location-control"><MapPin size={17} /><span className="sr-only">Demo service area</span><select aria-label="Demo service area" value={location} disabled={busy} onChange={event => { setLocation(event.target.value as Location); invalidate("Demo service area changed. Compare again to refresh availability."); }}><option value="bengaluru">Bengaluru · Demo</option><option value="pune">Pune · Demo</option><option value="hyderabad">Hyderabad · Demo</option></select><ChevronDown size={14} /></label></div>
         <div className="feedback" aria-live="polite" role="status">{busy && <LoaderCircle size={16} className="spin" />}{notice}</div>{error && <div id="shopping-error" tabIndex={-1} className="error-banner" role="alert"><CircleHelp size={19} /><p>{error}</p><button className="text-button" onClick={() => setError("")}>Dismiss</button></div>}
-        <PricingStatus location={location} pin={pin} onPinEdit={next => { cancelNavigation(); if (response && next !== pin) { setResponse(null); setStage("compose"); setApproved([]); setNotice("PIN edited. Compare again to check coverage and refresh quotes."); } }} onPin={next => { if (next === pin) return; setPin(next); invalidate("PIN changed. Compare again to check the selected area's illustrative coverage."); }} simulation={simulation} onSimulation={next => { setSimulation(next); invalidate("Simulation changed. Compare again to test this provider response state."); }} pricing={response?.pricing} busy={busy} canRefresh={items.length > 0} onRefresh={() => void compare(stage === "results" ? "results" : "review", true)} />
+        <PricingStatus location={location} pin={pin} onPinEdit={next => { cancelNavigation(); pinDraft.current = next; if (next !== pin) { setError(""); setNotice("PIN edited. Compare again to check coverage and refresh quotes."); if (response) { setResponse(null); setStage("compose"); setApproved([]); } } }} onPin={next => { pinDraft.current = next; setPin(next); }} simulation={simulation} onSimulation={next => { setSimulation(next); invalidate("Simulation changed. Compare again to test this provider response state."); }} pricing={response?.pricing} busy={busy} canRefresh={items.length > 0} onRefresh={() => void compare(stage === "results" ? "results" : "review", true)} />
         <div className="workspace-grid"><ListComposer items={items} busy={busy} onChange={changeItems} onAdd={addItems} onExample={loadExample} onCompare={() => void compare("review")} />
           <aside className="preferences"><div className="panel preferences-panel"><div className="preferences-title"><SlidersHorizontal size={18} /><h3>Your shop, your rules.</h3></div><fieldset disabled={busy} className="unstyled-fieldset"><legend className="field-legend">Compare fictional stores</legend>{retailers.map(retailer => <label className="retailer-option" key={retailer.id}><span className={`store-logo small ${retailer.color}`}>{retailer.initials}</span><span>{retailer.name}<small>Simulated retailer</small></span><input type="checkbox" checked={retailerIds.includes(retailer.id)} onChange={() => { setRetailerIds(ids => ids.includes(retailer.id) ? ids.filter(id => id !== retailer.id) : [...ids, retailer.id]); invalidate("Store preferences changed. Compare your list again."); }} /></label>)}
             <label className="preference-field">Maximum store orders<select value={maxRetailers} onChange={event => { setMaxRetailers(Number(event.target.value)); invalidate("Order limit changed. Compare your list again."); }}><option value={1}>1 store · keep it simple</option><option value={2}>Up to 2 stores</option><option value={3}>Up to 3 stores</option></select></label>
