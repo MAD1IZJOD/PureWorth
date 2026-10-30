@@ -1,5 +1,15 @@
 import { z } from "zod";
-import { failure, type ProviderErrorCode, type ProviderResult } from "./contracts";
+import { errorCodes, failure, type ProviderErrorCode, type ProviderResult } from "./contracts";
+
+// Validate the transport envelope before accessing fields or emitting diagnostics.
+// Upstream messages are accepted only as input and are never copied to output.
+const providerEnvelopeSchema = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true), value: z.unknown() }).strict(),
+  z.object({ ok: z.literal(false), error: z.object({
+    code: z.enum(errorCodes), message: z.string().max(2000), retryable: z.boolean(),
+    retryAfterMs: z.number().int().nonnegative().optional(),
+  }).strict() }).strict(),
+]);
 
 export type Diagnostic = { provider: string; operation: string; code: ProviderErrorCode; attempt: number };
 export type AccessPolicy = { timeoutMs: number; retries: number; backoffMs: number; maxBackoffMs: number; concurrency: number; requestsPerWindow: number; windowMs: number };
@@ -32,10 +42,17 @@ export class ProviderExecutor {
       const raw = await Promise.race([work, timeout]);
       clearTimeout(timer);
       let result: ProviderResult<T>;
-      if (raw.ok) {
-        const parsed = schema.safeParse(raw.value);
-        result = parsed.success ? { ok: true, value: parsed.data } : failure("INVALID_RESPONSE");
-      } else result = failure(raw.error.code, raw.error.retryable, raw.error.retryAfterMs);
+      try {
+        const envelope = providerEnvelopeSchema.safeParse(raw);
+        if (!envelope.success) result = failure("INVALID_RESPONSE");
+        else if (envelope.data.ok) {
+          const parsed = schema.safeParse(envelope.data.value);
+          result = parsed.success ? { ok: true, value: parsed.data } : failure("INVALID_RESPONSE");
+        } else result = failure(envelope.data.error.code, envelope.data.error.retryable, envelope.data.error.retryAfterMs);
+      } catch {
+        // Custom response refinements can throw; keep their diagnostics private too.
+        result = failure("INVALID_RESPONSE");
+      }
       if (result.ok) return result;
       this.log({ provider: this.provider, operation, code: result.error.code, attempt: attempt + 1 });
       const retryable = ["TIMEOUT", "RATE_LIMITED", "UNAVAILABLE"].includes(result.error.code) && result.error.retryable;
