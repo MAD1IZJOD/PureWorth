@@ -72,6 +72,8 @@ Mutating APIs use bounded UTF-8 streaming reads with five-second body deadlines,
 
 Browser headers restrict resources to the same origin, disallow object embedding and framing, restrict form actions, disable sensitive device APIs and prevent indexing. HSTS is configured for Vercel HTTPS deployments. Inline scripts/styles remain permitted for Next hydration and existing inline styles; production eval and external script/connect origins are blocked. This CSP is defense in depth, not a substitute for escaping/validation or a nonce-based strict CSP. Verify all browsers before tightening it further.
 
+Zod runs with `jitless: true` before client schemas are created. This avoids its optional runtime-code-generation probe, which otherwise produced a Firefox CSP warning. Validation rules remain enabled; do not add `unsafe-eval` to remove that warning. See [Zod's CSP guidance](https://zod.dev/compile).
+
 ## Logs, metrics and analytics
 
 Structured operational logs contain only allowlisted event categories, server-generated request ID, status, integer duration, explored node count, bounded-search flag and failure counts. No raw body, shopping item, PIN, IP, header, exception, API key or address is accepted by the log schema. Sink failures are swallowed. Comparison core duration includes matching/provider/quote work; the benchmark separately measures the pure optimizer.
@@ -107,6 +109,8 @@ The verifier requires an unchanged clean checkout, then runs unit/API tests, typ
 
 Measured local budgets are intentionally modest: API burst p95 under 2s, repeated capped request p95 under 1.5s, initial gzip JavaScript under 220 KB and review-to-results journey under 2.5s. They are regression guards based on loopback measurements, not internet/mobile field promises. A short burst is not a sustained soak test; 429 throughput is not checkout capacity. Keep the baseline/final values and environment in the delivery report.
 
+The final local verification tested application source `5371f611fe96fc4fedc89f528babface91d8d8c9`, build `J7lEBPhcwxmqUH7Gc9_t4`, on 31 October 2026 IST: 230 unit/API tests and all 960 browser checks passed, as did type checking, zero-warning lint, production build, dependency audit and measured performance budgets. The [Phase 4 delivery report](phase-4-delivery.md) records the actual measurements and failed checks that led to fixes. Release evidence is generated locally and intentionally ignored by Git; rerun it after any source change.
+
 ## Protected staging release gates
 
 1. Preserve the one-file/commit/push rules. Finish all source changes; run verification on a clean synchronized main. Investigate every failed check rather than bypassing it.
@@ -117,7 +121,9 @@ Measured local budgets are intentionally modest: API burst p95 under 2s, repeate
 6. Verify unauthenticated access rejection, authenticated page/API access, readiness, security headers, demo notices, feedback and provider outage behavior, all shopping controls, download and disabled ordering at that URL. Test alternate URLs/RSC routes and ensure no secret is in returned HTML/assets. Do not remove protection to run tests.
 7. Do not promote or assign a public production domain without explicit user approval and separate release verification. A production `--skip-domain` upload is not automatically private.
 
-There is currently no verified deployment URL. No CLI, project link, Vercel token or Redis credentials were found in the workspace environment during implementation. Existing external account state cannot be inferred from that observation.
+There is currently no verified deployment URL. No CLI, project link, Vercel token or Redis credentials were found in the workspace environment. A separate read-only browser inspection found an authenticated Vercel session, but searching for PureWorth returned no project in the inspected team; this does not rule out projects elsewhere. The user confirmed that no dedicated Upstash database exists. No project, database, credential or deployment was created.
+
+`npm run check:release` passed locally. `npm run check:release -- --hosted` exited with code 1 at the required hosted protected-access/shared-storage configuration check. This is an unresolved release gate. Provision the approved dedicated database and intended protected project, configure private environment values, and verify actual Redis scripts, outages and the HTTPS staging perimeter before inviting hosted testers. The separate local staging-mode smoke check returned 503/no-store for the page, comparison, feedback and readiness without configuration, while constant liveness stayed 200; that verifies fail-closed application behavior, not Vercel's external protection.
 
 ## Recovery and incidents
 
