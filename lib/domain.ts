@@ -2,6 +2,10 @@ import { z } from "zod";
 import type { MatchConfidence } from "./providers/contracts";
 import type { PricingDiagnostics } from "./providers/metadata";
 
+// Validation runs under a no-eval production CSP. Disable Zod's optional
+// code-generation probe before defining schemas, including in browser bundles.
+z.config({ jitless: true });
+
 export const moneySchema = z.number().int().min(0).max(100_000_000);
 export const canonicalUnitSchema = z.enum(["g", "ml", "pieces", "packs"]);
 export type CanonicalUnit = z.infer<typeof canonicalUnitSchema>;
