@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ListPlus, Minus, Plus, Trash2, ShoppingBasket, ArrowRight } from "lucide-react";
 import { quantityLabel, type ShoppingItem } from "../lib/domain";
 import { ProductArt } from "./product-art";
@@ -14,14 +14,14 @@ type Props = {
 };
 
 export function ListComposer({ items, busy, onChange, onAdd, onExample, onCompare }: Props) {
-  const [draft, setDraft] = useState("");
+  const draft = useRef<HTMLInputElement>(null);
   const [quantityError, setQuantityError] = useState<{ id: string; message: string } | null>(null);
   const update = (id: string, change: Partial<ShoppingItem>) => onChange(items.map(item => item.id === id ? { ...item, ...change } : item));
   return <section className="panel list-panel" aria-labelledby="list-title" id="shopping-list" tabIndex={-1}>
     <div className="panel-heading"><div><span className="eyebrow">YOUR STARTING POINT</span><h2 id="list-title">One list. All your essentials.</h2></div><span className="count-badge">{items.length} / 12 items</span></div>
     <fieldset disabled={busy} className="unstyled-fieldset">
-      <form className="quick-add" onSubmit={event => { event.preventDefault(); if (onAdd(draft)) setDraft(""); }}>
-        <ListPlus size={20} aria-hidden="true" /><label className="sr-only" htmlFor="quick-item">Add a grocery item</label><input id="quick-item" value={draft} onChange={event => setDraft(event.target.value)} placeholder="Add an item, e.g. Amul milk 1 L" maxLength={2000} required /><button className="icon-button" aria-label="Add grocery item" type="submit"><Plus size={20} /></button>
+      <form className="quick-add" onSubmit={event => { event.preventDefault(); if (onAdd(draft.current?.value ?? "")) event.currentTarget.reset(); }}>
+        <ListPlus size={20} aria-hidden="true" /><label className="sr-only" htmlFor="quick-item">Add a grocery item</label><input id="quick-item" ref={draft} defaultValue="" placeholder="Add an item, e.g. Amul milk 1 L" maxLength={2000} required /><button className="icon-button" aria-label="Add grocery item" type="submit"><Plus size={20} /></button>
       </form>
       {!items.length ? <div className="empty-state"><ShoppingBasket size={36} strokeWidth={1.2} /><h3>Your next smart shop starts here.</h3><p>Add a few essentials above, or give our weekly list a try.</p><button className="text-button" onClick={onExample} type="button">Load the example list <ArrowRight size={16} /></button></div> : <ul className="shopping-items">
         {items.map(item => <li key={item.id} className="shopping-item" data-testid="shopping-item">
