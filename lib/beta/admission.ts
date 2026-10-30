@@ -13,7 +13,13 @@ const replySchema = z.tuple([z.union([z.literal(0), z.literal(1)]), z.number().i
 /** Global shared budgets: no IP, forwarded header or browser identifier is trusted. */
 export class SharedAdmission implements Admission {
   constructor(private readonly store: Pick<RedisStore, "command" | "healthy">, private readonly namespace: string) {}
-  async healthy() { return this.store.healthy(); }
+  async healthy() {
+    // PING can succeed with read-only credentials. Probe the actual atomic
+    // admission contract; a working exhausted budget is healthy protection.
+    const ticket = await this.acquire("compare");
+    if (!ticket.allowed) return ticket.status === 429;
+    await ticket.release(); return true;
+  }
   async acquire(operation: Operation): Promise<Ticket> {
     const tag = `{pureworth-${this.namespace}}:${operation}`, lease = randomUUID();
     try {
