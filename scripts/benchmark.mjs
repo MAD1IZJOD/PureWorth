@@ -30,6 +30,12 @@ async function server() {
   try { await fetch(base, { signal: AbortSignal.timeout(300) }); throw new Error("Port 3100 is occupied; stop that server before benchmarking"); } catch (e) { if (e.message.startsWith("Port 3100")) throw e; }
   const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "--hostname", "127.0.0.1", "--port", "3100"], { stdio: "ignore", windowsHide: true, env: { ...process.env, PUREWORTH_ENV: "local", VERCEL: "0", PUREWORTH_ANALYTICS: "false", PUREWORTH_FEEDBACK: "false" } });
   const stop = () => { if (child.exitCode !== null) return; if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true }); else child.kill(); };
+  stop.memory = () => {
+    try {
+      if (process.platform === "win32") return Number(execFileSync("powershell.exe", ["-NoProfile", "-Command", `(Get-Process -Id ${child.pid}).WorkingSet64`], { encoding: "utf8", windowsHide: true }).trim()) / 1024 ** 2;
+      return Number(readFileSync(`/proc/${child.pid}/status`, "utf8").match(/VmRSS:\s+(\d+)/)?.[1]) / 1024;
+    } catch { return null; }
+  };
   try {
     for (let i = 0; i < 100; i++) { if (child.exitCode !== null) throw new Error("Benchmark server exited"); try { if ((await fetch(base)).ok) return stop; } catch {} await pause(100); }
     throw new Error("Benchmark server did not start");
@@ -37,7 +43,7 @@ async function server() {
 }
 function input(items) { return { items, location: "bengaluru", retailerIds: ["freshlane", "daily", "pantry"], maxRetailers: 3 }; }
 async function load(concurrency, items, perUser) {
-  const stop = await server(), times = [], codes = {}; let incomplete = 0, bounded = 0, transportErrors = 0;
+  const stop = await server(), times = [], successTimes = [], codes = {}; let incomplete = 0, bounded = 0, transportErrors = 0;
   const started = performance.now();
   try {
     await Promise.all(Array.from({ length: concurrency }, async () => {
@@ -47,6 +53,7 @@ async function load(concurrency, items, perUser) {
           const response = await fetch(`${base}/api/compare`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input(items)), signal: AbortSignal.timeout(15_000) });
           codes[response.status] = (codes[response.status] ?? 0) + 1;
           const data = await response.json();
+          if (response.ok) successTimes.push(performance.now() - start);
           if (response.ok && !data.pricing?.comparisonComplete) incomplete++;
           if (data.result?.status === "bounded") bounded++;
           if (data.result?.explored > 200_000) throw new Error("Search cap exceeded");
@@ -56,7 +63,7 @@ async function load(concurrency, items, perUser) {
       }
     }));
     const durationSeconds = (performance.now() - started) / 1000, total = times.length;
-    return { concurrency, requests: total, durationSeconds, medianMs: quantile(times, 0.5), p95Ms: quantile(times, 0.95), throughputPerSecond: total / durationSeconds, codes, incomplete, bounded, transportErrors, unexpectedErrorPercent: ((transportErrors + incomplete + Object.entries(codes).filter(([code]) => Number(code) >= 500).reduce((sum, [, n]) => sum + n, 0)) / total) * 100, rateLimited: codes[429] ?? 0 };
+    return { concurrency, requests: total, durationSeconds, medianMs: quantile(times, 0.5), p95Ms: quantile(times, 0.95), successP95Ms: successTimes.length ? quantile(successTimes, 0.95) : null, throughputPerSecond: total / durationSeconds, codes, incomplete, bounded, transportErrors, serverRssAfterMiB: stop.memory(), unexpectedErrorPercent: ((transportErrors + incomplete + Object.entries(codes).filter(([code]) => Number(code) >= 500).reduce((sum, [, n]) => sum + n, 0)) / total) * 100, rateLimited: codes[429] ?? 0 };
   } finally { stop(); await pause(150); }
 }
 for (const concurrency of [1, 10, 25, 50, 100]) results.load.push(await load(concurrency, weekly, 2));
@@ -68,11 +75,18 @@ try {
   const bodies = [];
   page.on("response", response => { if (response.url().includes("/_next/") && response.url().split("?")[0].endsWith(".js")) bodies.push(response.body().then(body => { jsBytes += body.length; jsGzipBytes += gzipSync(body).length; }).catch(() => {})); });
   await page.goto(base); await page.getByRole("button", { name: "Try a weekly essentials list" }).waitFor(); await page.waitForLoadState("networkidle");
+  await Promise.all(bodies);
+  const initialJavaScript = { bytes: jsBytes, gzipBytes: jsGzipBytes };
   const navigation = await page.evaluate(() => { const n = performance.getEntriesByType("navigation")[0]; return { responseStartMs: n.responseStart, domContentLoadedMs: n.domContentLoadedEventEnd, loadMs: n.loadEventEnd, firstContentfulPaintMs: performance.getEntriesByName("first-contentful-paint")[0]?.startTime ?? null }; });
   const exampleStarted = performance.now(); await page.getByRole("button", { name: "Try a weekly essentials list" }).click(); await page.getByTestId("shopping-item").first().waitFor(); const exampleMs = performance.now() - exampleStarted;
   const resultStarted = performance.now(); await page.getByRole("button", { name: "Compare my list", exact: true }).click(); await page.getByRole("button", { name: "Find my best basket", exact: true }).click(); await page.getByTestId("basket-total").waitFor();
   await Promise.all(bodies);
-  results.browser = { engine: "Chromium", viewport: 390, navigation, exampleMs, reviewAndResultsMs: performance.now() - resultStarted, jsBytes, jsGzipBytes, note: "Loopback, unthrottled, single measured browser journey; not a field Core Web Vitals claim" };
+  results.browser = { engine: "Chromium", viewport: 390, navigation, exampleMs, reviewAndResultsMs: performance.now() - resultStarted, initialJavaScript, journeyJavaScript: { bytes: jsBytes, gzipBytes: jsGzipBytes }, note: "Loopback, unthrottled, single measured browser journey; not a field Core Web Vitals claim" };
 } finally { await browser.close(); stop(); }
 mkdirSync("test-results", { recursive: true }); writeFileSync("test-results/benchmark.json", JSON.stringify(results, null, 2)); console.log(JSON.stringify(results, null, 2));
-if (results.load.some(r => r.transportErrors || r.unexpectedErrorPercent > 0) || results.expensive.transportErrors) process.exitCode = 1;
+const budgets = { apiP95Ms: 2000, cappedP95Ms: 1500, initialGzipBytes: 220000, journeyMs: 2500 };
+results.budgets = budgets;
+results.budgetPass = results.load.every(r => r.p95Ms <= budgets.apiP95Ms && r.unexpectedErrorPercent === 0) && results.expensive.p95Ms <= budgets.cappedP95Ms && results.expensive.unexpectedErrorPercent === 0 && results.browser.initialJavaScript.gzipBytes <= budgets.initialGzipBytes && results.browser.reviewAndResultsMs <= budgets.journeyMs;
+writeFileSync("test-results/benchmark.json", JSON.stringify(results, null, 2));
+console.log(`Performance budgets passed: ${results.budgetPass}`);
+if (!results.budgetPass) process.exitCode = 1;
