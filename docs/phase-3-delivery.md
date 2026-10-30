@@ -145,3 +145,38 @@ The final terminal verification checks all Phase 3 commits for exactly one chang
 | Blocked by external authorization | Every actual retailer/network connection |
 | Not implemented | Real authenticated HTTP connectors, exact-address lookup, real checkout/payment/order placement, accounts, durable storage and distributed deployment controls |
 
+## Revalidation — 30 October 2026
+
+The repeated Phase 3 attachment is byte-identical to the request completed on 29 October. Work resumed from clean, synchronized `26efbbf6f1563fad38623f3e77931e5ca0d8aba4` on main; the project was not restarted. Configured author/committer and actual origin were checked before edits.
+
+### Confirmed failure and fix
+
+A direct malformed-response probe reproduced an uncaught null-envelope exception and showed that an unrecognized provider error code could enter returned messages and diagnostic logs. Only an intentionally fictional test token was used. Nine new regression cases failed before the fix; none was skipped or removed.
+
+`lib/providers/reliability.ts` now validates the entire success/failure envelope before reading fields, validates known error codes and boolean flags, rejects negative/nonfinite retry delays, and returns fixed INVALID_RESPONSE errors for malformed input. Upstream diagnostic messages are discarded. Custom response-schema exceptions also produce safe errors. Valid failures retain bounded retry behavior and authentication failures are not retried.
+
+`lib/providers/infrastructure.test.ts` adds nine malformed-envelope cases and one valid authentication-message sanitization case, including checks that malformed responses are not retried and do not poison subsequent requests.
+
+Final tested runtime/test checkpoint: `6314fd24724f22b5ed5903b77ae2645c7da4c657`. The report-only commit follows it.
+
+### Actual final verification
+
+| Command/check | Result |
+| --- | --- |
+| `npm test` | 168 passed across eight files; zero failed/skipped |
+| `npm run typecheck` | Passed |
+| `npm run lint` | Passed without warnings |
+| `npm run build` | Passed on the fixed source |
+| `npm run test:e2e` | 280 passed; zero failed/flaky/skipped across all five viewport projects |
+| `npm audit --json` | Zero known vulnerabilities |
+| Focused tracked-file secret-signature scan | No matches; no tracked environment files |
+| Git audit | All 54 Phase 3 commits through this report have one changed file and the exact required author/committer; clean main and actual remote hash verified after push |
+
+The fresh baseline browser run was intentionally interrupted to implement the reproduced failure; it is not counted as a completed pass. The final browser run uses the fixed production build and retains all existing 28 grocery scenarios, fee-oracle checks, capped-search labels, valid savings references, controls, accessibility scans, freshness/coverage/recovery cases and five viewport projects (1440, 820, 390, 360 and 430px). The known Node runner NO_COLOR/FORCE_COLOR environment warning is separate from application console checks. The generated HTML report independently records total=280, expected=280, unexpected=0, flaky=0, skipped=0, ok=true.
+
+### Current delivery limits
+
+No UI or optimization algorithm rewrite was needed. The functionality, architecture, local commands and external authorization requirements in sections B–L remain applicable. No actual retailer connector was enabled, no credential was used, and no payment, ordering or public deployment was performed. Research links remain explicitly dated 29 October; this revalidation does not assert new provider authorization.
+
+The app remains suitable for supervised demonstration MVP testing. Real integration requires approved provider access, contract-specific transport/freshness/cache/fee rules and live contract tests. Unrestricted public traffic still requires distributed abuse controls, monitoring, load testing and deployment/privacy review. Chromium emulation is not physical-device or cross-browser certification.
+
