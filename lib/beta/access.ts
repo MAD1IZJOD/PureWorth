@@ -8,7 +8,7 @@ export function betaAccess(request: Request, config: BetaConfig = betaConfig()):
   const host = request.headers.get("host") ?? url.host;
   const loopback = /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(host);
   if (!config.deployed && config.access === "local" && loopback) return null;
-  if (config.access !== "protected" || !config.redis || !config.accessToken) return new Response("PureWorth beta access is not ready.", { status: 503, headers: { ...privateHeaders, "Retry-After": "30", "X-Robots-Tag": "noindex, nofollow" } });
+  if (url.protocol !== "https:" || config.access !== "protected" || !config.redis || !config.accessToken) return new Response("PureWorth beta access is not ready.", { status: 503, headers: { ...privateHeaders, "Retry-After": "30", "X-Robots-Tag": "noindex, nofollow" } });
   const authorization = request.headers.get("authorization") ?? "";
   let supplied = "";
   if (/^Basic [A-Za-z0-9+/=]{1,1024}$/i.test(authorization)) {
